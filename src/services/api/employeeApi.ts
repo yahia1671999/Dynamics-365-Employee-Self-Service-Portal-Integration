@@ -12,6 +12,7 @@ import {
   MonitoringRequestStatus,
   MonitoringAttachment,
   D365Notification,
+  UnifiedRequestItem,
 } from '../../types/d365.types';
 
 export class EmployeeApi {
@@ -114,6 +115,13 @@ export class EmployeeApi {
     const id = personnelNumber || authService.getCurrentUser()?.id || '';
     const query = id ? `?workerId=${encodeURIComponent(id)}` : '';
     return apiClient.get<D365Notification[]>(`/notifications${query}`);
+  }
+
+  /**
+   * Fetches unified requests
+   */
+  public async getUnifiedRequests(): Promise<ApiResponse<UnifiedRequestItem[]>> {
+    return apiClient.get<UnifiedRequestItem[]>('/unified-requests');
   }
 }
 

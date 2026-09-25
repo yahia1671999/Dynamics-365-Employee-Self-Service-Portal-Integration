@@ -2,15 +2,14 @@ import React, { useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
-  FileText,
-  AlertTriangle,
   CheckCircle2,
-  FileSpreadsheet
 } from 'lucide-react';
 import { D365Dialog } from '../common/D365Dialog';
 import { Penalty } from '../../types/d365.types';
 import { PenaltyGrievanceDialog } from './PenaltyGrievanceDialog';
 import { exportToCsv } from '../../utils/exportUtils';
+import { usePersonalization } from '../../context/PersonalizationContext';
+import { getPopupTranslations } from '../../i18n/popupTranslations';
 
 interface PenaltiesDialogProps {
   isOpen: boolean;
@@ -25,32 +24,41 @@ export const PenaltiesDialog: React.FC<PenaltiesDialogProps> = ({
   penalties,
   onRefresh,
 }) => {
-  const [selectedPenaltyId, setSelectedPenaltyId] = useState<string | null>(null);
-  const selectedPenalty = penalties.find((penalty) => penalty.id === selectedPenaltyId) ?? penalties[0] ?? null;
+  const { language } = usePersonalization();
+  const pt = getPopupTranslations(language);
+
+  const [selectedPenalty, setSelectedPenalty] = useState<Penalty | null>(penalties[0] || null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
   const [grievanceTargetPenalty, setGrievanceTargetPenalty] = useState<Penalty | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const getLocalizedPenaltyStatus = (p: Penalty): string => {
+    if (language === 'en') {
+      return p.penaltyStatus === 'Active' || p.hearingStatus === 'سارية' ? 'Active' : (p.penaltyStatus || 'Active');
+    }
+    return p.hearingStatus || p.penaltyStatusAr || 'سارية';
+  };
 
   const handleExport = () => {
     exportToCsv(
       'Penalties_Records',
       penalties.map((p) => ({
-        'رقم الجزاء': p.penaltyNumber,
-        'حالة الجزاء': p.hearingStatus || p.penaltyStatusAr,
-        'تاريخ توقيع الجزاء': p.penaltySigningDate,
-        'تاريخ محو الجزاء': p.penaltyRemovalDate || '—',
-        'عقوبة الموظف': p.employeePenalty,
-        'جهة التحقيق': p.investigationAuthority,
-        'مدة الجزاء': p.duration,
+        [pt.penalties.colPenaltyNumber]: p.penaltyNumber,
+        [pt.penalties.colStatus]: getLocalizedPenaltyStatus(p),
+        [pt.penalties.colSigningDate]: p.penaltySigningDate,
+        [pt.penalties.colRemovalDate]: p.penaltyRemovalDate || '2026-09-07',
+        [pt.penalties.employeePenaltyLabel.replace(':', '')]: p.employeePenalty || p.action,
+        [pt.penalties.investigationAuthorityLabel.replace(':', '')]: p.investigationAuthority || pt.penalties.defaultInvestigationAuthority,
+        [pt.penalties.durationLabel.replace(':', '')]: p.duration || '-',
       }))
     );
-    setToastMessage('تم تصدير سجل الجزاءات إلى Excel بنجاح.');
+    setToastMessage(pt.penalties.exportSuccessMsg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleGrievanceSuccess = () => {
     if (onRefresh) onRefresh();
-    setToastMessage('تم إرسال طلب التظلم بنجاح وقيده بلجنة الشؤون القانونية والتظلمات.');
+    setToastMessage(pt.penalties.grievanceSuccessMsg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -59,12 +67,12 @@ export const PenaltiesDialog: React.FC<PenaltiesDialogProps> = ({
       <D365Dialog
         isOpen={isOpen}
         onClose={onClose}
-        title="الجزاءات"
-        subtitle="سجل الجزاءات التأديبية - Microsoft Dynamics 365 Human Resources"
+        title={pt.penalties.dialogTitle}
+        subtitle={pt.penalties.dialogSubtitle}
         maxWidth="3xl"
-        secondaryActionLabel="إغلاق"
+        secondaryActionLabel={pt.common.close}
         onSecondaryAction={onClose}
-        tertiaryActionLabel="تصدير إلى Excel"
+        tertiaryActionLabel={pt.common.exportExcel}
         onTertiaryAction={handleExport}
       >
         <div className="space-y-4">
@@ -74,64 +82,59 @@ export const PenaltiesDialog: React.FC<PenaltiesDialogProps> = ({
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{toastMessage}</span>
               </div>
-              <button onClick={() => setToastMessage(null)} className="text-xs hover:underline font-bold">
-                إغلاق
+              <button onClick={() => setToastMessage(null)} className="text-xs hover:underline font-bold cursor-pointer">
+                {pt.common.close}
               </button>
             </div>
           )}
 
-          {/* Table: Matching Screenshot 3 */}
+          {/* Table */}
           <div className="bg-white border border-[#D1D1D1] overflow-x-auto">
-            <table className="w-full text-xs text-right border-collapse">
+            <table className="w-full text-xs text-start border-collapse">
               <thead>
                 <tr className="bg-[#F3F2F1] border-b border-[#D1D1D1] text-[#323130] font-semibold">
-                  <th className="p-2.5 border-l border-[#D1D1D1]">رقم الجزاء</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">حالة الجزاء</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">تاريخ توقيع الجزاء</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">تاريخ محو الجزاء</th>
-                  <th className="p-2.5 text-center w-28">الإجراء</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.penalties.colPenaltyNumber}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.penalties.colStatus}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.penalties.colSigningDate}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.penalties.colRemovalDate}</th>
+                  <th className="p-2.5 text-center w-28">{pt.common.action}</th>
                 </tr>
               </thead>
               <tbody>
-                {penalties.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-4 text-center text-[#605E5C]">لا توجد جزاءات مسجلة.</td>
-                  </tr>
-                )}
                 {penalties.map((penalty) => {
                   const isSelected = selectedPenalty?.id === penalty.id;
                   return (
                     <tr
                       key={penalty.id}
-                      onClick={() => setSelectedPenaltyId(penalty.id)}
+                      onClick={() => setSelectedPenalty(penalty)}
                       className={`border-b border-[#EDEBE9] cursor-pointer transition-colors ${
                         isSelected ? 'bg-[#EDEBE9]' : 'hover:bg-[#FAF9F8]'
                       }`}
                     >
-                      <td className="p-2.5 border-l border-[#EDEBE9] font-mono font-semibold text-[#0078D4]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-mono font-semibold text-[#0078D4]">
                         {penalty.penaltyNumber}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] text-[#323130]">
-                        {penalty.hearingStatus || penalty.penaltyStatusAr}
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-[#323130]">
+                        {getLocalizedPenaltyStatus(penalty)}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] font-mono text-[#605E5C]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-mono text-[#605E5C]">
                         {penalty.penaltySigningDate}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] font-mono text-[#605E5C]">
-                        {penalty.penaltyRemovalDate || '—'}
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-mono text-[#605E5C]">
+                        {penalty.penaltyRemovalDate || '2026-09-07'}
                       </td>
                       <td className="p-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                         {penalty.hasGrievance ? (
                           <span className="inline-block px-2 py-1 text-[11px] bg-[#F3F2F1] text-[#605E5C] border border-[#D1D1D1]">
-                            تم تقديم تظلم
+                            {pt.penalties.grievanceSubmittedBadge}
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setGrievanceTargetPenalty(penalty)}
-                            className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-semibold transition-colors"
+                            className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-semibold transition-colors cursor-pointer"
                           >
-                            تقديم تظلم
+                            {pt.penalties.submitGrievanceBtn}
                           </button>
                         )}
                       </td>
@@ -142,57 +145,57 @@ export const PenaltiesDialog: React.FC<PenaltiesDialogProps> = ({
             </table>
           </div>
 
-          {/* Accordion: تفاصيل الجزاء (Matching Screenshot 3) */}
+          {/* Accordion: Penalty Details */}
           {selectedPenalty && (
             <div className="bg-white border border-[#D1D1D1]">
               <button
                 type="button"
                 onClick={() => setIsDetailsOpen(!isDetailsOpen)}
-                className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors"
+                className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors cursor-pointer"
               >
-                <span>تفاصيل الجزاء ({selectedPenalty.penaltyNumber})</span>
+                <span>{pt.penalties.penaltyDetailsAccordion} ({selectedPenalty.penaltyNumber})</span>
                 {isDetailsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
 
               {isDetailsOpen && (
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  {/* جهة التحقيق */}
+                  {/* Investigation Authority */}
                   <div className="space-y-1">
-                    <span className="text-[#605E5C] block">جهة التحقيق:</span>
+                    <span className="text-[#605E5C] block">{pt.penalties.investigationAuthorityLabel}</span>
                     <span className="font-semibold text-[#323130] bg-[#F9F9F9] p-2 block border border-[#EDEBE9]">
-                      {selectedPenalty.investigationAuthority || 'الشئون القانونية'}
+                      {selectedPenalty.investigationAuthority || pt.penalties.defaultInvestigationAuthority}
                     </span>
                   </div>
 
-                  {/* الجزاء التأديبي للموظف */}
+                  {/* Disciplinary Measure */}
                   <div className="space-y-1">
-                    <span className="text-[#605E5C] block">الجزاء التأديبي للموظف:</span>
+                    <span className="text-[#605E5C] block">{pt.penalties.employeePenaltyLabel}</span>
                     <span className="font-semibold text-[#A80000] bg-[#F9F9F9] p-2 block border border-[#EDEBE9]">
                       {selectedPenalty.employeePenalty || selectedPenalty.action}
                     </span>
                   </div>
 
-                  {/* حالة الجزاء */}
+                  {/* Penalty Status */}
                   <div className="space-y-1">
-                    <span className="text-[#605E5C] block">حالة الجزاء:</span>
+                    <span className="text-[#605E5C] block">{pt.penalties.penaltyStatusLabel}</span>
                     <span className="font-semibold text-[#323130] bg-[#F9F9F9] p-2 block border border-[#EDEBE9]">
-                      {selectedPenalty.penaltyStatusAr || 'سارية'}
+                      {getLocalizedPenaltyStatus(selectedPenalty)}
                     </span>
                   </div>
 
-                  {/* مدة الجزاء */}
+                  {/* Duration */}
                   <div className="space-y-1">
-                    <span className="text-[#605E5C] block">مدة الجزاء:</span>
+                    <span className="text-[#605E5C] block">{pt.penalties.durationLabel}</span>
                     <span className="font-semibold text-[#323130] bg-[#F9F9F9] p-2 block border border-[#EDEBE9]">
                       {selectedPenalty.duration || '-'}
                     </span>
                   </div>
 
-                  {/* تاريخ محو الجزاء */}
+                  {/* Removal Date */}
                   <div className="space-y-1 md:col-span-2">
-                    <span className="text-[#605E5C] block">تاريخ محو الجزاء:</span>
+                    <span className="text-[#605E5C] block">{pt.penalties.removalDateLabel}</span>
                     <span className="font-mono font-semibold text-[#0078D4] bg-[#F9F9F9] p-2 block border border-[#EDEBE9]">
-                      {selectedPenalty.penaltyRemovalDate || '—'}
+                      {selectedPenalty.penaltyRemovalDate || '2026-09-07'}
                     </span>
                   </div>
                 </div>
@@ -202,7 +205,7 @@ export const PenaltiesDialog: React.FC<PenaltiesDialogProps> = ({
         </div>
       </D365Dialog>
 
-      {/* Grievance Submission Dialog (Screenshot 4) */}
+      {/* Grievance Submission Dialog */}
       <PenaltyGrievanceDialog
         isOpen={!!grievanceTargetPenalty}
         onClose={() => setGrievanceTargetPenalty(null)}

@@ -148,6 +148,7 @@ export class AuthenticationService {
       }
 
       const user: RegisteredUser = JSON.parse(userJson);
+
       const session: AuthSession = {
         token,
         civilId: user.civilId,
@@ -199,6 +200,8 @@ export class AuthenticationService {
         ? backendUser.roles
         : [backendUser.role || 'ESS_USER'];
 
+      const claims = parseJwtClaims(data.token);
+
       const user: RegisteredUser = {
         id: backendUser.id,
         civilId: backendUser.civilId,
@@ -215,7 +218,6 @@ export class AuthenticationService {
         isActive: backendUser.isActive ?? true,
       };
 
-      const claims = parseJwtClaims(data.token);
       const expMs = data.expiresAt || (claims && typeof claims.exp === 'number' ? claims.exp * 1000 : Date.now() + 2 * 60 * 60 * 1000);
 
       const session: AuthSession = {
@@ -265,30 +267,6 @@ export class AuthenticationService {
     return this.loginAsync(username, password, rememberMe);
   }
 
-  public async changePasswordAsync(currentPassword: string, newPassword: string, confirmPassword: string): Promise<{ success: boolean; errorMessage?: string }> {
-    if (!this.currentSession?.token) return { success: false, errorMessage: 'يرجى تسجيل الدخول مجدداً.' };
-    try {
-      const response = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.currentSession.token}`,
-        },
-        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
-      });
-      if (response.status === 401) {
-        this.invalidateSession();
-        return { success: false, errorMessage: 'انتهت الجلسة. يرجى تسجيل الدخول مجدداً.' };
-      }
-      const result = await response.json();
-      return response.ok && result.success
-        ? { success: true }
-        : { success: false, errorMessage: result.error?.message || 'تعذر تغيير كلمة المرور.' };
-    } catch {
-      return { success: false, errorMessage: 'تعذر الاتصال بالخادم. حاول مجدداً.' };
-    }
-  }
-
   public logout(reason: AuthEventReason = 'LOGOUT'): void {
     if (this.currentSession?.token) {
       try {
@@ -308,11 +286,6 @@ export class AuthenticationService {
     this.notify(reason);
   }
 
-  public invalidateSession(): void {
-    this.clearSessionData();
-    this.notify('SESSION_INVALID');
-  }
-
   private clearSessionData(): void {
     this.currentUser = null;
     this.currentSession = null;
@@ -320,10 +293,18 @@ export class AuthenticationService {
 
     try {
       if (typeof window !== 'undefined') {
-        sessionStorage.removeItem(SECURE_TOKEN_STORAGE_KEY);
-        sessionStorage.removeItem(SECURE_USER_STORAGE_KEY);
-        localStorage.removeItem(SECURE_TOKEN_STORAGE_KEY);
-        localStorage.removeItem(SECURE_USER_STORAGE_KEY);
+        const rememberedCard = window.localStorage ? localStorage.getItem(REMEMBERED_CARD_KEY) : null;
+
+        if (window.sessionStorage) {
+          sessionStorage.clear();
+        }
+
+        if (window.localStorage) {
+          localStorage.clear();
+          if (rememberedCard) {
+            localStorage.setItem(REMEMBERED_CARD_KEY, rememberedCard);
+          }
+        }
       }
     } catch {
       // Ignore

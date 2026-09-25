@@ -57,23 +57,41 @@ public class LeaveController : ControllerBase
     [HttpGet("delegated-employees")]
     public async Task<ActionResult<List<DelegatedEmployeeDto>>> GetDelegatedEmployees(CancellationToken ct)
     {
-        var workerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrWhiteSpace(workerId)) return Unauthorized();
-        var delegates = await _d365Service.GetDelegatedEmployeesAsync(workerId, ct);
+        var delegates = await _d365Service.GetDelegatedEmployeesAsync(ct);
         return Ok(delegates);
     }
 
     [HttpPost("leave-requests")]
     public async Task<ActionResult<LeaveRequestDto>> SubmitLeaveRequest([FromBody] LeaveRequestDto request, CancellationToken ct)
     {
-        var workerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrWhiteSpace(workerId)) return Unauthorized();
-        if (!string.IsNullOrWhiteSpace(request.EmployeeId) && request.EmployeeId != workerId)
-            return Forbid();
-        request.EmployeeId = workerId;
         if (string.IsNullOrWhiteSpace(request.LeaveTypeCode) || string.IsNullOrWhiteSpace(request.StartDate) || string.IsNullOrWhiteSpace(request.EndDate))
         {
             return BadRequest(new { error = new { message = "بيانات طلب الإجازة غير مكتملة (نوع الإجازة وتاريخ البدء والانتهاء إلزامية)." } });
+        }
+
+        // Validate employee status according to Secondment/Loan business rules
+        var targetId = !string.IsNullOrWhiteSpace(request.EmployeeId) ? request.EmployeeId : User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrWhiteSpace(targetId))
+        {
+            try
+            {
+                var emp = await _d365Service.GetEmployeeAsync(targetId, ct);
+                if (emp != null)
+                {
+                    if (emp.EmploymentStatus == "Seconded" || (emp.EmploymentStatusAr != null && emp.EmploymentStatusAr.Contains("منتدب")))
+                    {
+                        return BadRequest(new { error = new { message = "لا يمكن تقديم طلب إجازة أثناء فترة الندب. حالة الموظف الحالية: منتدب. وفقاً لقواعد الأعمال، الإجراءات المتاحة هي (تجديد الندب) أو (إنهاء الندب) فقط." } });
+                    }
+                    if (emp.EmploymentStatus == "Loaned" || (emp.EmploymentStatusAr != null && emp.EmploymentStatusAr.Contains("معار")))
+                    {
+                        return BadRequest(new { error = new { message = "لا يمكن تقديم طلب إجازة أثناء فترة الإعارة. حالة الموظف الحالية: معار. وفقاً لقواعد الأعمال، الإجراءات المتاحة هي (تجديد الإعارة) أو (إنهاء الإعارة) فقط." } });
+                    }
+                }
+            }
+            catch
+            {
+                // Continue if employee check is unavailable
+            }
         }
 
         var created = await _d365Service.SubmitLeaveRequestAsync(request, ct);
@@ -89,28 +107,5 @@ public class LeaveController : ControllerBase
             return Ok(new { success = true });
         }
         return NotFound(new { error = new { message = "طلب الإجازة غير موجود" } });
-    }
-
-    [HttpPost("leave-requests/{id}/submit")]
-    public async Task<ActionResult<LeaveRequestDto>> SubmitSavedLeaveRequest(string id, CancellationToken ct)
-    {
-        var workerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrWhiteSpace(workerId)) return Unauthorized();
-        try
-        {
-            return Ok(await _d365Service.SubmitSavedLeaveRequestAsync(id, workerId, ct));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(new { error = new { message = "Leave request not found for this employee." } });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { error = new { message = ex.Message } });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { error = new { message = ex.Message } });
-        }
     }
 }

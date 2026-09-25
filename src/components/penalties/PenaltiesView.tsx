@@ -112,10 +112,10 @@ export const PenaltiesView: React.FC<PenaltiesViewProps> = ({
       />
 
       {/* Page Title & Status Strip */}
-      <div className="bg-white border border-[#D1D1D1] p-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white border border-[#D2D0CE] p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
         <div>
-          <h1 className="text-base font-bold text-[#323130] flex items-center gap-2">
-            <span className="w-2 h-4 bg-[#D83B01]"></span>
+          <h1 className="text-base font-bold text-[#201F1E] flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-[#D83B01]"></span>
             <span>الجزاءات والعقوبات الإدارية (Disciplinary Actions)</span>
           </h1>
           <p className="text-[11px] text-[#605E5C] mt-0.5">
@@ -124,14 +124,14 @@ export const PenaltiesView: React.FC<PenaltiesViewProps> = ({
         </div>
 
         {/* Status Metrics */}
-        <div className="flex items-center gap-2">
-          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D1D1D1] text-xs">
-            <span className="text-[#605E5C]">الجزاءات النافذة: </span>
-            <strong className="text-[#A80000] font-sans">{activePenaltiesCount}</strong>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D2D0CE] text-xs shadow-2xs flex items-center gap-1.5">
+            <span className="text-[#605E5C] font-medium">الجزاءات النافذة:</span>
+            <strong className="text-[#D83B01] font-mono font-extrabold tabular-nums">{activePenaltiesCount}</strong>
           </div>
-          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D1D1D1] text-xs">
-            <span className="text-[#605E5C]">تظلمات قيد الدراسة: </span>
-            <strong className="text-[#0078D4] font-sans">{underGrievanceCount}</strong>
+          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D2D0CE] text-xs shadow-2xs flex items-center gap-1.5">
+            <span className="text-[#605E5C] font-medium">تظلمات قيد الدراسة:</span>
+            <strong className="text-[#0078D4] font-mono font-extrabold tabular-nums">{underGrievanceCount}</strong>
           </div>
         </div>
       </div>
@@ -149,14 +149,14 @@ export const PenaltiesView: React.FC<PenaltiesViewProps> = ({
             {row.penaltyStatus === 'Active' && !row.hasGrievance ? (
               <button
                 onClick={() => setSelectedPenaltyForGrievance(row)}
-                className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs hover:shadow-xs cursor-pointer focus-visible:outline-none"
                 title="تقديم تظلم رسمي على هذا الجزاء"
               >
                 <Scale className="w-3 h-3" />
                 <span>تقديم تظلم (Grievance)</span>
               </button>
             ) : row.hasGrievance ? (
-              <span className="text-[11px] text-[#0078D4] bg-[#EFF6FC] px-2 py-0.5 border border-[#0078D4]/30 font-medium">
+              <span className="text-[11px] text-[#0078D4] bg-[#EFF6FC] px-2.5 py-0.5 border border-[#0078D4]/30 font-semibold shadow-2xs">
                 {row.grievanceId || 'تم تقديم تظلم'}
               </span>
             ) : (
@@ -173,33 +173,33 @@ export const PenaltiesView: React.FC<PenaltiesViewProps> = ({
           summary={activePenaltyDetails.penaltyStatusAr}
           defaultExpanded={true}
         >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#FAF9F8] p-3 border border-[#EDEBE9]">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#FAF9F8] p-3.5 border border-[#EDEBE9]">
+            <div className="bg-white p-3 border border-[#E1DFDD] shadow-2xs">
               <div className="text-[11px] font-bold text-[#605E5C]">رقم الجزاء والجهة المصدرة:</div>
-              <div className="text-xs font-mono font-bold text-[#0078D4] mt-0.5">{activePenaltyDetails.penaltyNumber}</div>
-              <div className="text-xs text-[#323130] mt-1">{activePenaltyDetails.investigationAuthority}</div>
+              <div className="text-xs font-mono font-extrabold text-[#0078D4] mt-0.5 tabular-nums">{activePenaltyDetails.penaltyNumber}</div>
+              <div className="text-xs text-[#201F1E] font-medium mt-1">{activePenaltyDetails.investigationAuthority}</div>
             </div>
 
-            <div>
+            <div className="bg-white p-3 border border-[#E1DFDD] shadow-2xs">
               <div className="text-[11px] font-bold text-[#605E5C]">التواريخ والمدة:</div>
               <div className="text-xs text-[#323130] mt-0.5">
-                تاريخ التوقيع: <strong className="font-mono">{activePenaltyDetails.penaltySigningDate}</strong>
+                تاريخ التوقيع: <strong className="font-mono font-bold text-[#201F1E] tabular-nums">{activePenaltyDetails.penaltySigningDate}</strong>
               </div>
               <div className="text-xs text-[#323130] mt-1">
-                تاريخ السريان: <strong className="font-mono">{activePenaltyDetails.penaltyStartDate}</strong>
+                تاريخ السريان: <strong className="font-mono font-bold text-[#201F1E] tabular-nums">{activePenaltyDetails.penaltyStartDate}</strong>
               </div>
-              <div className="text-xs text-[#A80000] mt-1 font-semibold">
+              <div className="text-xs text-[#D83B01] mt-1 font-bold">
                 الأثر الإداري/المالي: {activePenaltyDetails.duration}
               </div>
             </div>
 
-            <div>
+            <div className="bg-white p-3 border border-[#E1DFDD] shadow-2xs">
               <div className="text-[11px] font-bold text-[#605E5C]">تفاصيل المخالفة وسبب الجزاء:</div>
-              <div className="text-xs text-[#323130] mt-0.5 leading-relaxed bg-white p-2 border border-[#D1D1D1]">
+              <div className="text-xs text-[#323130] mt-0.5 leading-relaxed bg-[#FAF9F8] p-2 border border-[#EDEBE9]">
                 {activePenaltyDetails.penaltyDetails}
               </div>
               {activePenaltyDetails.grievanceStatus && (
-                <div className="mt-2 text-[11px] text-[#0078D4] bg-[#EFF6FC] p-1.5 border border-[#0078D4]/20">
+                <div className="mt-2 text-[11px] text-[#0078D4] bg-[#EFF6FC] p-1.5 border border-[#0078D4]/20 font-semibold shadow-2xs">
                   <strong>موقف التظلم: </strong> {activePenaltyDetails.grievanceStatus}
                 </div>
               )}

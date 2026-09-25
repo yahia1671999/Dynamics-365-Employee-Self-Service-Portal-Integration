@@ -1,17 +1,13 @@
 import React, { useState } from 'react';
 import {
-  Code2,
   Copy,
   Check,
-  Download,
-  Layers,
   Server,
-  Key,
-  Database,
-  ExternalLink
 } from 'lucide-react';
 import { D365Dialog } from '../common/D365Dialog';
 import { d365Service } from '../../services/d365Service';
+import { usePersonalization } from '../../context/PersonalizationContext';
+import { getPopupTranslations } from '../../i18n/popupTranslations';
 
 interface D365ApiInspectorDialogProps {
   isOpen: boolean;
@@ -22,6 +18,9 @@ export const D365ApiInspectorDialog: React.FC<D365ApiInspectorDialogProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { language } = usePersonalization();
+  const pt = getPopupTranslations(language);
+
   const [selectedEntity, setSelectedEntity] = useState<'HcmLeaveRequest' | 'HcmDisciplinaryGrievance' | 'HcmCourseEvaluation'>(
     'HcmLeaveRequest'
   );
@@ -35,23 +34,23 @@ export const D365ApiInspectorDialog: React.FC<D365ApiInspectorDialogProps> = ({
     delegatedEmployeeId: 'EMP-10773',
     socialInsuranceOption: true,
     healthInsuranceOption: true,
-    notes: 'تم التنسيق لتسليم المهام للموظف البديل.',
+    notes: language === 'en' ? 'Coordinated task handover with the backup employee.' : 'تم التنسيق لتسليم المهام للموظف البديل.',
   });
 
   const sampleGrievancePayload = d365Service.generateODataPayload('HcmDisciplinaryGrievance', {
     penaltyId: 'DISC-2025-014',
     grievanceDate: '2026-09-21',
-    grievanceSubject: 'التظلم من قرار لفت النظر لثبوت العذر القهري',
-    grievanceDetails: 'تفاصيل الدفوع القانونية والمستندات الداعمة لموقف الموظف...',
+    grievanceSubject: language === 'en' ? 'Grievance against disciplinary letter due to force majeure' : 'التظلم من قرار لفت النظر لثبوت العذر القهري',
+    grievanceDetails: language === 'en' ? 'Details of legal grounds and supporting evidence...' : 'تفاصيل الدفوع القانونية والمستندات الداعمة لموقف الموظف...',
   });
 
   const sampleEvaluationPayload = d365Service.generateODataPayload('HcmCourseEvaluation', {
     courseId: 'CRS-D365-FO-ARCH',
-    trainerKnowledge: 'ممتاز',
-    trainerEngagement: 'ممتاز',
-    courseContent: 'جيد جداً',
-    overallProgramEvaluation: 'ممتاز',
-    programDuration: 'جيد جداً',
+    trainerKnowledge: language === 'en' ? 'Excellent' : 'ممتاز',
+    trainerEngagement: language === 'en' ? 'Excellent' : 'ممتاز',
+    courseContent: language === 'en' ? 'Very Good' : 'جيد جداً',
+    overallProgramEvaluation: language === 'en' ? 'Excellent' : 'ممتاز',
+    programDuration: language === 'en' ? 'Very Good' : 'جيد جداً',
   });
 
   const getCurrentPayload = () => {
@@ -83,14 +82,16 @@ export const D365ApiInspectorDialog: React.FC<D365ApiInspectorDialogProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isAr = language === 'ar';
+
   return (
     <D365Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Microsoft Dynamics 365 Finance & Operations - OData v4 Integration Architecture"
-      subtitle="المعمارية التقنية ونموذج الربط عبر واجهات برمجة التطبيقات (API & Data Entities)"
+      title={pt.apiInspector.title}
+      subtitle={pt.apiInspector.subtitle}
       maxWidth="4xl"
-      secondaryActionLabel="إغلاق"
+      secondaryActionLabel={pt.common.close}
       onSecondaryAction={onClose}
     >
       <div className="space-y-4 text-xs">
@@ -98,19 +99,19 @@ export const D365ApiInspectorDialog: React.FC<D365ApiInspectorDialogProps> = ({
         <div className="bg-[#FAF9F8] border border-[#D1D1D1] p-3 text-[#323130]">
           <div className="font-bold text-xs text-[#0078D4] mb-1.5 flex items-center gap-1.5">
             <Server className="w-4 h-4" />
-            <span>مواصفات الربط المعماري مع Microsoft Dynamics 365:</span>
+            <span>{pt.apiInspector.architectureSpecsTitle}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-[#605E5C] mt-2">
             <div className="p-2 bg-white border border-[#EDEBE9]">
-              <strong className="text-[#323130] block">بروتوكول الواجهة:</strong>
+              <strong className="text-[#323130] block">{pt.apiInspector.interfaceProtocol}</strong>
               <span>OData v4 REST Protocol (JSON)</span>
             </div>
             <div className="p-2 bg-white border border-[#EDEBE9]">
-              <strong className="text-[#323130] block">طريقة المصادقة (Auth):</strong>
+              <strong className="text-[#323130] block">{pt.apiInspector.authMethod}</strong>
               <span>Azure Active Directory (OAuth 2.0 Bearer Token)</span>
             </div>
             <div className="p-2 bg-white border border-[#EDEBE9]">
-              <strong className="text-[#323130] block">نطاق الكيان (DataAreaId):</strong>
+              <strong className="text-[#323130] block">{pt.apiInspector.entityScope}</strong>
               <span className="font-mono text-[#0078D4] font-bold">usmf / Cross-Company Enabled</span>
             </div>
           </div>
@@ -120,35 +121,35 @@ export const D365ApiInspectorDialog: React.FC<D365ApiInspectorDialogProps> = ({
         <div className="flex items-center gap-2 border-b border-[#D1D1D1] pb-2">
           <button
             onClick={() => setSelectedEntity('HcmLeaveRequest')}
-            className={`px-3 py-1.5 font-semibold text-xs transition-colors ${
+            className={`px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer ${
               selectedEntity === 'HcmLeaveRequest'
                 ? 'bg-[#0078D4] text-white shadow-xs'
                 : 'bg-white hover:bg-[#F3F2F1] text-[#605E5C] border border-[#8A8886]'
             }`}
           >
-            LeaveAndAbsenceRequests (طلب إجازة)
+            {pt.apiInspector.tabLeave}
           </button>
 
           <button
             onClick={() => setSelectedEntity('HcmDisciplinaryGrievance')}
-            className={`px-3 py-1.5 font-semibold text-xs transition-colors ${
+            className={`px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer ${
               selectedEntity === 'HcmDisciplinaryGrievance'
                 ? 'bg-[#0078D4] text-white shadow-xs'
                 : 'bg-white hover:bg-[#F3F2F1] text-[#605E5C] border border-[#8A8886]'
             }`}
           >
-            DisciplinaryGrievances (تظلم على جزاء)
+            {pt.apiInspector.tabGrievance}
           </button>
 
           <button
             onClick={() => setSelectedEntity('HcmCourseEvaluation')}
-            className={`px-3 py-1.5 font-semibold text-xs transition-colors ${
+            className={`px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer ${
               selectedEntity === 'HcmCourseEvaluation'
                 ? 'bg-[#0078D4] text-white shadow-xs'
                 : 'bg-white hover:bg-[#F3F2F1] text-[#605E5C] border border-[#8A8886]'
             }`}
           >
-            CourseEvaluations (تقييم دورة تدريبية)
+            {pt.apiInspector.tabEval}
           </button>
         </div>
 
@@ -160,10 +161,10 @@ export const D365ApiInspectorDialog: React.FC<D365ApiInspectorDialogProps> = ({
           </div>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#F3F2F1] border border-[#8A8886] text-xs text-[#0078D4] font-medium transition-colors shrink-0"
+            className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#F3F2F1] border border-[#8A8886] text-xs text-[#0078D4] font-medium transition-colors shrink-0 cursor-pointer"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-[#107C41]" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'تم النسخ!' : 'نسخ JSON'}</span>
+            <span>{copied ? pt.apiInspector.copiedBtn : pt.apiInspector.copyBtn}</span>
           </button>
         </div>
 
@@ -175,44 +176,44 @@ export const D365ApiInspectorDialog: React.FC<D365ApiInspectorDialogProps> = ({
         {/* D365 Field Mapping Table */}
         <div className="bg-white border border-[#D1D1D1] p-3">
           <div className="font-bold text-xs text-[#323130] mb-2">
-            جدول مطابقة حقول البوابة مع كائنات مايكروسوفت ديناميكس 365 (Field Mapping):
+            {pt.apiInspector.fieldMappingTitle}
           </div>
-          <table className="w-full text-right border-collapse text-[11px]">
+          <table className="w-full text-start border-collapse text-[11px]">
             <thead>
               <tr className="bg-[#F3F2F1] border-b border-[#D1D1D1]">
-                <th className="p-1.5 border-l border-[#EDEBE9]">حقل البوابة (Portal UI Field)</th>
-                <th className="p-1.5 border-l border-[#EDEBE9]">حقل كائن ديناميكس (D365 Entity Property)</th>
-                <th className="p-1.5 border-l border-[#EDEBE9]">نوع البيانات (EDT / Type)</th>
-                <th className="p-1.5">جدول المصدر (D365 AxTable)</th>
+                <th className="p-1.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-start">{pt.apiInspector.thPortalField}</th>
+                <th className="p-1.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-start">{pt.apiInspector.thD365Property}</th>
+                <th className="p-1.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-start">{pt.apiInspector.thDataType}</th>
+                <th className="p-1.5 text-start">{pt.apiInspector.thSourceTable}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EDEBE9] text-[#605E5C]">
               <tr>
-                <td className="p-1.5 font-semibold text-[#323130]">الرقم الوظيفي</td>
+                <td className="p-1.5 font-semibold text-[#323130]">{pt.apiInspector.fieldWorkerId}</td>
                 <td className="p-1.5 font-mono text-[#0078D4]">PersonnelNumber</td>
                 <td className="p-1.5 font-mono">HcmPersonnelNumberId</td>
                 <td className="p-1.5 font-mono">HcmWorker</td>
               </tr>
               <tr>
-                <td className="p-1.5 font-semibold text-[#323130]">نوع الإجازة</td>
+                <td className="p-1.5 font-semibold text-[#323130]">{pt.apiInspector.fieldLeaveType}</td>
                 <td className="p-1.5 font-mono text-[#0078D4]">LeaveTypeId</td>
                 <td className="p-1.5 font-mono">HcmLeaveTypeId</td>
                 <td className="p-1.5 font-mono">HcmLeaveType</td>
               </tr>
               <tr>
-                <td className="p-1.5 font-semibold text-[#323130]">تاريخ البدء والانتهاء</td>
+                <td className="p-1.5 font-semibold text-[#323130]">{pt.apiInspector.fieldStartEndDates}</td>
                 <td className="p-1.5 font-mono text-[#0078D4]">StartDate / EndDate</td>
                 <td className="p-1.5 font-mono">TransDate</td>
                 <td className="p-1.5 font-mono">HcmLeaveRequest</td>
               </tr>
               <tr>
-                <td className="p-1.5 font-semibold text-[#323130]">الموظف البديل</td>
+                <td className="p-1.5 font-semibold text-[#323130]">{pt.apiInspector.fieldDelegatedWorker}</td>
                 <td className="p-1.5 font-mono text-[#0078D4]">DelegatedWorkerPersonnelNumber</td>
                 <td className="p-1.5 font-mono">HcmPersonnelNumberId</td>
                 <td className="p-1.5 font-mono">HcmWorker</td>
               </tr>
               <tr>
-                <td className="p-1.5 font-semibold text-[#323130]">حالة سير العمل</td>
+                <td className="p-1.5 font-semibold text-[#323130]">{pt.apiInspector.fieldWorkflowState}</td>
                 <td className="p-1.5 font-mono text-[#0078D4]">WorkflowState</td>
                 <td className="p-1.5 font-mono">Enum: HcmLeaveWorkflowState</td>
                 <td className="p-1.5 font-mono">WorkflowTrackingStatusTable</td>

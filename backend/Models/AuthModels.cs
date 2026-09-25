@@ -22,18 +22,6 @@ public class LoginRequest
     public bool RememberMe { get; set; } = false;
 }
 
-public class ChangePasswordRequest
-{
-    [JsonPropertyName("currentPassword")]
-    public string CurrentPassword { get; set; } = string.Empty;
-
-    [JsonPropertyName("newPassword")]
-    public string NewPassword { get; set; } = string.Empty;
-
-    [JsonPropertyName("confirmPassword")]
-    public string ConfirmPassword { get; set; } = string.Empty;
-}
-
 public class UserDto
 {
     [JsonPropertyName("id")]

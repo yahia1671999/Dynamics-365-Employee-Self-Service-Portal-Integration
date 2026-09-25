@@ -16,6 +16,24 @@ export interface EmployeePersonalDetails {
   verificationDate: string; // تاريخ التحقق e.g. '2024-01-10'
 }
 
+export interface SecondmentDetails {
+  entity: string; // جهة الندب
+  startDate: string; // تاريخ بدء الندب
+  endDate?: string; // تاريخ نهاية الندب
+  type?: string; // كلي / جزئي
+  referenceNumber?: string; // رقم قرار الندب
+  isRenewal?: boolean;
+}
+
+export interface LoanDetails {
+  entity: string; // الجهة المستعيرة
+  startDate: string; // تاريخ بدء الإعارة
+  endDate?: string; // تاريخ نهاية الإعارة
+  type?: string; // داخلية / خارجية
+  referenceNumber?: string; // رقم قرار الإعارة
+  isRenewal?: boolean;
+}
+
 export interface Employee {
   id: string; // WorkerPersonnelNumber
   name: string; // WorkerName
@@ -26,15 +44,16 @@ export interface Employee {
   yearsOfService?: string; // سنوات الخدمة (e.g. '6 سنوات')
   directManager: string; // ReportsToWorkerName (e.g., 'د. سامي فهد العمر')
   jobGrade: string; // CompensationGrade (e.g., 'المرتبة السابعة - الدرجة 3')
-  jobGroup?: string; // PAR_JobType description
-  employmentStatus: string; // Dynamics status, when exposed
-  employmentStatusAr: string; // 'على رأس العمل - نشط'
+  employmentStatus: 'Active' | 'OnLeave' | 'Terminated' | 'Seconded' | 'Loaned' | string; // EmploymentStatus
+  employmentStatusAr: string; // 'على رأس العمل - نشط' | 'منتدب' | 'معار'
   email: string;
   phone: string;
   legalEntity: string; // DataAreaId (e.g., 'USMF' / 'شركة التقنية المتقدمة')
   civilId: string; // National ID / Iqama
   avatarUrl?: string;
   personalDetails?: EmployeePersonalDetails;
+  secondmentDetails?: SecondmentDetails;
+  loanDetails?: LoanDetails;
 }
 
 export type LeaveTypeCode =
@@ -47,15 +66,13 @@ export type LeaveTypeCode =
   | 'CHILD_CARE'
   | 'COMPENSATORY'
   | 'HAJJ'
-  | 'BEREAVEMENT'
-  | 'PTO'
-  | 'VACATION';
+  | 'BEREAVEMENT';
 
 export interface LeaveBalance {
   id: string;
   leaveTypeCode: LeaveTypeCode;
   leaveTypeTitle: string; // e.g., 'اجازة اعتيادي'
-  unit: string; // Unit of measure returned by Dynamics
+  unit: 'أيام' | 'ساعات'; // Unit of measure
   currentBalance: number; // Current available balance e.g. 24.00
   allocatedBalance: number; // Annual allocation e.g. 30.00
   consumedBalance: number; // Used this year
@@ -78,7 +95,6 @@ export interface LeaveMovementTransaction {
 export type LeaveRequestStatus = 'Draft' | 'Submitted' | 'InReview' | 'Approved' | 'Rejected' | 'Canceled';
 
 export interface LeaveRequest {
-  saveAsDraft?: boolean;
   id: string; // RequestId e.g., 'LR-2026-089'
   employeeId: string;
   employeeName: string;
@@ -407,3 +423,4 @@ export interface UnifiedRequestItem extends RecentRequest {
   id: string;
   referenceNumber?: string;
 }
+

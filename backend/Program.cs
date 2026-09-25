@@ -83,37 +83,16 @@ var d365Settings = new D365Settings
     LegalEntity = Environment.GetEnvironmentVariable("D365_LEGAL_ENTITY")
         ?? Environment.GetEnvironmentVariable("D365Settings__LegalEntity")
         ?? builder.Configuration["D365Settings:LegalEntity"] ?? string.Empty,
-    ReassignmentEndpointPath = Environment.GetEnvironmentVariable("D365_REASSIGNMENT_ENDPOINT_PATH")
-        ?? Environment.GetEnvironmentVariable("D365Settings__ReassignmentEndpointPath")
-        ?? builder.Configuration["D365Settings:ReassignmentEndpointPath"] ?? "/api/services/PAR_EssAssignmentServiceGroup/PAR_EssAssignmentService/submitAssignment",
     TimeoutSeconds = int.TryParse(Environment.GetEnvironmentVariable("D365_TIMEOUT_SECONDS"), out var timeout) ? timeout : 30
-};
-
-var employeeLoginSettings = new EmployeeLoginSettings
-{
-    EmployeeEntitySet = Environment.GetEnvironmentVariable("D365_EMPLOYEE_ENTITY_SET")
-        ?? Environment.GetEnvironmentVariable("EmployeeLogin__EmployeeEntitySet")
-        ?? builder.Configuration["EmployeeLogin:EmployeeEntitySet"] ?? "Employees",
-    IdentificationEntitySet = Environment.GetEnvironmentVariable("D365_IDENTIFICATION_ENTITY_SET")
-        ?? Environment.GetEnvironmentVariable("EmployeeLogin__IdentificationEntitySet")
-        ?? builder.Configuration["EmployeeLogin:IdentificationEntitySet"] ?? "PersonIdentificationNumbers",
-    NationalIdField = Environment.GetEnvironmentVariable("D365_NATIONAL_ID_FIELD")
-        ?? Environment.GetEnvironmentVariable("EmployeeLogin__NationalIdField")
-        ?? builder.Configuration["EmployeeLogin:NationalIdField"] ?? "IdentificationNumber",
-    NationalIdTypeId = Environment.GetEnvironmentVariable("D365_NATIONAL_ID_TYPE_ID")
-        ?? Environment.GetEnvironmentVariable("EmployeeLogin__NationalIdTypeId")
-        ?? builder.Configuration["EmployeeLogin:NationalIdTypeId"] ?? "National ID"
 };
 
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(jwtSettings));
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(d365Settings));
-builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(employeeLoginSettings));
 
 // 2. Add Core Services & Dependency Injection
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddHttpClient<ID365Client, D365Client>();
-builder.Services.AddScoped<IWorkerPortalPasswordVerifier, SqlWorkerPortalPasswordVerifier>();
 builder.Services.AddScoped<ID365Service, D365Service>();
 
 // 3. Add Controllers

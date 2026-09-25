@@ -10,8 +10,6 @@ public interface ID365Client
 {
     Task<T?> GetAsync<T>(string entitySet, string? queryParams = null, CancellationToken cancellationToken = default);
     Task<TResponse?> PostAsync<TRequest, TResponse>(string entitySet, TRequest body, CancellationToken cancellationToken = default);
-    Task<bool> PostActionAsync(string entitySetAndAction, CancellationToken cancellationToken = default);
-    Task<string> PostCustomRequestAsync(string relativePath, object body, CancellationToken cancellationToken = default);
     Task<TResponse?> PatchAsync<TRequest, TResponse>(string entitySetAndKey, TRequest body, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(string entitySetAndKey, CancellationToken cancellationToken = default);
     Task<bool> PingAsync(CancellationToken cancellationToken = default);
@@ -165,67 +163,6 @@ public class D365Client : ID365Client
             _logger.LogError(ex, "Error executing D365 POST {Entity}", entitySet);
             return default;
         }
-    }
-
-    public async Task<bool> PostActionAsync(string entitySetAndAction, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var request = await CreateD365Request(HttpMethod.Post, entitySetAndAction, cancellationToken);
-            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            if (response.IsSuccessStatusCode) return true;
-
-            var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning("D365 action {Entity} returned {StatusCode}: {Error}", entitySetAndAction, response.StatusCode, errorText);
-            string message;
-            try
-            {
-                using var errorJson = JsonDocument.Parse(errorText);
-                var error = errorJson.RootElement.GetProperty("error");
-                message = error.GetProperty("message").GetString() ?? "Dynamics rejected the action.";
-                if (message == "An error has occurred."
-                    && error.TryGetProperty("innererror", out var inner)
-                    && inner.TryGetProperty("message", out var innerMessage))
-                    message = innerMessage.GetString() ?? message;
-            }
-            catch (Exception)
-            {
-                message = "Dynamics rejected the action.";
-            }
-            throw new InvalidOperationException($"Dynamics submit failed (HTTP {(int)response.StatusCode}): {message[..Math.Min(message.Length, 500)]}");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error executing D365 action {Entity}", entitySetAndAction);
-            throw;
-        }
-    }
-
-    public async Task<string> PostCustomRequestAsync(string relativePath, object body, CancellationToken cancellationToken = default)
-    {
-        if (!relativePath.StartsWith('/') || relativePath.StartsWith("//") || relativePath.Contains("..") || relativePath.Contains('?'))
-            throw new ArgumentException("Dynamics service path must be an absolute relative path without a query string.", nameof(relativePath));
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, _settings.BaseUrl.TrimEnd('/') + relativePath);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetAccessTokenAsync(cancellationToken));
-        request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            using var result = JsonDocument.Parse(responseBody);
-            var root = result.RootElement;
-            var assignmentId = root.ValueKind == JsonValueKind.String ? root.GetString()
-                : root.TryGetProperty("result", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()
-                : null;
-            if (!string.IsNullOrWhiteSpace(assignmentId)) return assignmentId;
-            throw new InvalidOperationException("Dynamics did not return a reassignment request number.");
-        }
-
-        _logger.LogWarning("D365 custom service {Path} returned {StatusCode}: {Error}", relativePath, response.StatusCode, responseBody);
-        throw new InvalidOperationException($"Dynamics custom service request failed (HTTP {(int)response.StatusCode}): {responseBody[..Math.Min(responseBody.Length, 500)]}");
     }
 
     public async Task<TResponse?> PatchAsync<TRequest, TResponse>(string entitySetAndKey, TRequest body, CancellationToken cancellationToken = default)

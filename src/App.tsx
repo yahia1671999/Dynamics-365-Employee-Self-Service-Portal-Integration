@@ -38,6 +38,8 @@ import { MonitoringDialog } from './components/monitoring/MonitoringDialog';
 import { QuickActionDialog, QuickActionType } from './components/requests/QuickActionDialog';
 import { D365ApiInspectorDialog } from './components/integration/D365ApiInspectorDialog';
 import { MyTeamView } from './components/team/MyTeamView';
+import { PersonalizationProvider, usePersonalization } from './context/PersonalizationContext';
+import { PersonalizationPanel } from './components/personalization/PersonalizationPanel';
 import { LoginPage } from './components/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { d365Service } from './services/d365Service';
@@ -70,6 +72,20 @@ function getModuleFromPath(path: string): ActiveModule {
 }
 
 export default function App() {
+  const [currentUser] = useState<RegisteredUser | null>(() => authService.getCurrentUser());
+  const employee = d365Service.getEmployee();
+  const effectiveUserId = currentUser?.id || employee.id || 'current_user';
+
+  return (
+    <PersonalizationProvider userId={effectiveUserId}>
+      <AppContent />
+    </PersonalizationProvider>
+  );
+}
+
+function AppContent() {
+  const { t, accentConfig } = usePersonalization();
+
   // Authentication State governed by central Authentication Service
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return authService.isAuthenticated();
@@ -147,6 +163,7 @@ export default function App() {
   const [activeQuickAction, setActiveQuickAction] = useState<QuickActionType | null>(null);
   const [initialLeaveTypeForDialog, setInitialLeaveTypeForDialog] = useState<LeaveTypeCode>('ANNUAL');
   const [isODataInspectorOpen, setIsODataInspectorOpen] = useState(false);
+  const [isPersonalizationOpen, setIsPersonalizationOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const navigate = (toPath: string, replace = false) => {
@@ -223,9 +240,12 @@ export default function App() {
           civilId: user.civilId,
           jobTitle: user.jobTitle,
           department: user.department,
+          division: user.division,
           email: user.email,
           phone: user.phone || '',
+          legalEntity: user.legalEntity || '',
         });
+        d365Service.refreshAll();
       } else {
         navigate('/', true);
         if (reason === 'EXPIRED') {
@@ -285,12 +305,16 @@ export default function App() {
         civilId: activeUser.civilId,
         jobTitle: activeUser.jobTitle,
         department: activeUser.department,
+        division: activeUser.division,
         email: activeUser.email,
-        phone: activeUser.phone || '+20 10 1234 5678',
+        phone: activeUser.phone || '',
+        legalEntity: activeUser.legalEntity || '',
+      });
+      d365Service.refreshAll().catch((err) => {
+        console.warn('D365 initial data fetch:', err);
       });
     }
     navigate('/dashboard');
-    void d365Service.refreshAll();
     showToast('تم تسجيل الدخول بنجاح عبر خدمة التحقق الأمني. مرحباً بك في بوابة Microsoft Dynamics 365.');
   };
 
@@ -370,12 +394,12 @@ export default function App() {
   const navigationTabs: TabItem[] = [
     {
       id: 'dashboard',
-      label: 'لوحة معلومات الموظف (Dashboard)',
+      label: t('nav.dashboard', 'لوحة معلومات الموظف (Dashboard)', 'Employee Dashboard'),
       icon: <LayoutDashboard className="w-3.5 h-3.5" />,
     },
     {
       id: 'team',
-      label: 'معلومات فريقي (My team)',
+      label: t('nav.myTeam', 'معلومات فريقي (My team)', 'My Team'),
       icon: <Users className="w-3.5 h-3.5" />,
       count: pendingTeamRequestsCount > 0 ? pendingTeamRequestsCount : undefined,
     },
@@ -384,15 +408,15 @@ export default function App() {
   const getModuleTitle = () => {
     switch (activeModule) {
       case 'dashboard':
-        return 'لوحة معلومات الموظف (Employee Dashboard)';
+        return t('nav.dashboard', 'لوحة معلومات الموظف (Employee Dashboard)', 'Employee Dashboard');
       case 'team':
-        return 'معلومات فريقي (Manager Self-Service - My Team)';
+        return t('nav.myTeam', 'معلومات فريقي (Manager Self-Service - My Team)', 'My Team');
       case 'leave-balance':
-        return 'أرصدة الإجازات (Leave and Absence)';
+        return t('nav.leaveBalance', 'أرصدة الإجازات (Leave and Absence)', 'Leave Balances');
       case 'penalties':
-        return 'الجزاءات والعقوبات (Disciplinary Actions)';
+        return t('nav.penalties', 'الجزاءات والعقوبات (Disciplinary Actions)', 'Penalties');
       case 'training':
-        return 'الدورات التدريبية (Training Courses)';
+        return t('nav.trainingCourses', 'الدورات التدريبية (Training Courses)', 'Training Courses');
     }
   };
 
@@ -407,7 +431,12 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] text-[#323130] flex flex-col font-sans selection:bg-[#0078D4] selection:text-white">
+    <div
+      className="min-h-screen bg-[#F5F5F5] text-[#323130] flex flex-col font-sans transition-colors"
+      style={{
+        '--selection-bg': accentConfig.primary,
+      } as React.CSSProperties}
+    >
       {/* 1. Microsoft Dynamics 365 Navigation & Header */}
       <D365Header
         employee={employee}
@@ -415,6 +444,7 @@ export default function App() {
         onOpenODataInspector={() => setIsODataInspectorOpen(true)}
         activeModuleTitle={getModuleTitle()}
         onLogout={handleLogout}
+        onOpenPersonalization={() => setIsPersonalizationOpen(true)}
       />
 
       {/* Toast Notification Banner */}
@@ -433,8 +463,8 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. Workspace Navigation Bar (D365 Pivot Tabs) */}
-      <nav className="bg-white border-b border-[#D1D1D1] sticky top-16 z-20 shadow-xs">
+      {/* 2. Workspace Navigation Bar (Modern Dynamics 365 Pivot Tabs) */}
+      <nav className="bg-[#F8F9FA] border-b border-[#EDEBE9] sticky top-16 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <D365Tabs
           tabs={navigationTabs}
           activeTabId={activeModule}
@@ -442,9 +472,9 @@ export default function App() {
         />
       </nav>
 
-      {/* 3. Main Workspace Canvas (Protected Routes) */}
-      <main className="flex-1 p-3 sm:p-4 max-w-7xl w-full mx-auto">
-        {/* Dynamics 365 Real Configuration Missing Alert Banner */}
+      {/* 3. Main Workspace Canvas (Protected Routes - Full Width With Small Side Margins) */}
+      <main className="flex-1 px-3 sm:px-4 md:px-5 lg:px-6 py-3 sm:py-4 w-full">
+        {/* Dynamics 365 Real Configuration Alert Banner */}
         <D365ConfigurationAlert
           isConfigured={isD365Configured}
           missingFields={missingConfigFields}
@@ -577,7 +607,7 @@ export default function App() {
         isOpen={isLeaveDialogOpen}
         onClose={() => setIsLeaveDialogOpen(false)}
         onSuccess={(id) => {
-          showToast(`تم حفظ طلب الإجازة في Dynamics برقم: ${id}`);
+          showToast(`تم إرسال طلب الإجازة بنجاح برقم: ${id}`);
         }}
         leaveBalances={leaveBalances}
         delegatedEmployees={delegatedEmployees}
@@ -621,14 +651,28 @@ export default function App() {
         isOpen={!!activeQuickAction}
         onClose={() => setActiveQuickAction(null)}
         actionType={activeQuickAction}
-        employee={employee}
         onSuccess={(msg) => showToast(msg)}
+        defaultEntity={
+          activeQuickAction === 'SECONDMENT_RENEW' || activeQuickAction === 'SECONDMENT_TERMINATE'
+            ? employee.secondmentDetails?.entity || 'وزارة الاتصالات وتقنية المعلومات'
+            : activeQuickAction === 'LOAN_RENEW' || activeQuickAction === 'LOAN_TERMINATE'
+            ? employee.loanDetails?.entity || 'جامعة الملك سعود - كلية علوم الحاسب'
+            : undefined
+        }
       />
 
       {/* D365 API & OData Inspector Dialog */}
       <D365ApiInspectorDialog
         isOpen={isODataInspectorOpen}
         onClose={() => setIsODataInspectorOpen(false)}
+      />
+
+      {/* Dynamics 365 Personalization Flyout Panel */}
+      <PersonalizationPanel
+        isOpen={isPersonalizationOpen}
+        onClose={() => setIsPersonalizationOpen(false)}
+        userName={employee.name}
+        userId={currentUser?.id || employee.id}
       />
     </div>
   );

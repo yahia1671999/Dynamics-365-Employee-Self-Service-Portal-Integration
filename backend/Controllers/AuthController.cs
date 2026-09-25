@@ -65,36 +65,6 @@ public class AuthController : ControllerBase
         return Ok(user);
     }
 
-    [HttpPost("change-password")]
-    [Authorize]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken ct)
-    {
-        Response.Headers.CacheControl = "no-store";
-        var workerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var nationalId = User.FindFirst("civilId")?.Value;
-        if (string.IsNullOrWhiteSpace(workerId) || string.IsNullOrWhiteSpace(nationalId)) return Unauthorized();
-        if (string.IsNullOrEmpty(request.CurrentPassword) || string.IsNullOrWhiteSpace(request.NewPassword)
-            || request.NewPassword.Length is < 8 or > 50)
-            return BadRequest(new { error = new { message = "كلمة المرور الجديدة يجب أن تتكون من 8 إلى 50 حرفاً." } });
-        if (!string.Equals(request.NewPassword, request.ConfirmPassword, StringComparison.Ordinal))
-            return BadRequest(new { error = new { message = "تأكيد كلمة المرور الجديدة غير مطابق." } });
-        if (string.Equals(request.CurrentPassword, request.NewPassword, StringComparison.Ordinal))
-            return BadRequest(new { error = new { message = "اختر كلمة مرور جديدة مختلفة عن الحالية." } });
-
-        var changed = await _authService.ChangePasswordAsync(workerId, nationalId,
-            request.CurrentPassword, request.NewPassword, ct);
-        if (!changed)
-            return BadRequest(new { error = new { message = "كلمة المرور الحالية غير صحيحة أو تعذر تحديد الموظف." } });
-
-        _auditLogger.LogAction(
-            action: "PASSWORD_CHANGED", endpoint: "/api/auth/change-password", method: "POST",
-            statusCode: 200, durationMs: 0, userId: workerId,
-            userName: User.FindFirst(ClaimTypes.Name)?.Value,
-            ip: HttpContext.Connection.RemoteIpAddress?.ToString(),
-            details: "Portal password changed; no password values logged", isSecurity: true);
-        return Ok(new { success = true });
-    }
-
     [HttpPost("logout")]
     [Authorize]
     public IActionResult Logout()
