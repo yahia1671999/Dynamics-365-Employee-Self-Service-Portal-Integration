@@ -36,7 +36,7 @@ export const D365StatusBadge: React.FC<D365StatusBadgeProps> = ({
       case 'pending':
       case 'معلق':
       case 'pendingevaluation':
-        return 'bg-[#FFF4CE] text-[#797673] border border-[#FDE300]/60';
+        return 'bg-[#FFF4CE] text-[#5C4A00] border border-[#FDE300]/60';
 
       case 'rejected':
       case 'مرفوض':
@@ -59,7 +59,7 @@ export const D365StatusBadge: React.FC<D365StatusBadgeProps> = ({
   const sizeClasses = size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs';
 
   return (
-    <span className={`inline-flex items-center gap-1 font-medium select-none ${sizeClasses} ${getBadgeStyle()}`}>
+    <span className={`inline-flex items-center gap-1 font-medium ${sizeClasses} ${getBadgeStyle()}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
       <span>{displayLabel}</span>
     </span>

@@ -14,6 +14,7 @@ import {
 import { D365Dialog } from '../common/D365Dialog';
 import { LeaveBalance, DelegatedEmployee, LeaveTypeCode } from '../../types/d365.types';
 import { d365Service } from '../../services/d365Service';
+import { authService } from '../../services/authService';
 
 interface LeaveRequestDialogProps {
   isOpen: boolean;
@@ -36,19 +37,12 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [delegatedEmployeeId, setDelegatedEmployeeId] = useState(
-    delegatedEmployees[0]?.id || 'EMP-10001'
+    ''
   );
   const [socialInsuranceOption, setSocialInsuranceOption] = useState<string>('yes');
   const [takafulFundOption, setTakafulFundOption] = useState<string>('yes');
   const [notes, setNotes] = useState('');
-  const [attachments, setAttachments] = useState<Array<{ id: string; fileName: string; fileType: string; uploadDate: string }>>([
-    {
-      id: 'att-1',
-      fileName: 'نموذج_تسليم_المهام.pdf',
-      fileType: 'مستند تسليم',
-      uploadDate: '2025-09-18',
-    }
-  ]);
+  const [attachments, setAttachments] = useState<Array<{ id: string; fileName: string; fileType: string; uploadDate: string }>>([]);
   const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(true);
   const [isNotesOpen, setIsNotesOpen] = useState(true);
   const [isBalancesOpen, setIsBalancesOpen] = useState(true);
@@ -57,14 +51,20 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setStartDate('2025-09-22');
-      setEndDate('2025-09-26');
+      setStartDate('');
+      setEndDate('');
       setErrorMessage(null);
       if (initialLeaveType) {
         setLeaveTypeCode(initialLeaveType);
       }
     }
   }, [isOpen, initialLeaveType]);
+
+  useEffect(() => {
+    if (!delegatedEmployees.some((employee) => employee.id === delegatedEmployeeId)) {
+      setDelegatedEmployeeId('');
+    }
+  }, [delegatedEmployees, delegatedEmployeeId]);
 
   const selectedBalance = leaveBalances.find((b) => b.leaveTypeCode === leaveTypeCode) || leaveBalances[0];
   const availableBalance = selectedBalance ? selectedBalance.currentBalance : 0;
@@ -74,8 +74,11 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (end < start) return 0;
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    let days = 0;
+    for (const date = new Date(start); date <= end; date.setUTCDate(date.getUTCDate() + 1)) {
+      if (date.getUTCDay() !== 0 && date.getUTCDay() !== 6) days++;
+    }
+    return days;
   };
 
   const requestedDays = calculateDays();
@@ -99,7 +102,7 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
     setAttachments(attachments.filter((a) => a.id !== id));
   };
 
-  const handleSubmit = (isDraft: boolean = false) => {
+  const handleSubmit = async (isDraft: boolean = false) => {
     if (!startDate || !endDate) {
       setErrorMessage('يرجى تحديد تاريخ البدء وتاريخ الانتهاء للإجازة.');
       return;
@@ -108,22 +111,50 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
       setErrorMessage('تاريخ الانتهاء يجب ألا يسبق تاريخ البدء.');
       return;
     }
+    if (startDate < new Date().toISOString().slice(0, 10) || requestedDays === 0) {
+      setErrorMessage('اختر تاريخاً حالياً أو مستقبلياً يتضمن يوم عمل واحداً على الأقل.');
+      return;
+    }
+    if (selectedBalance?.unit !== 'Days' && selectedBalance?.unit !== 'أيام') {
+      setErrorMessage('يمكن إرسال أنواع الإجازة المحسوبة بالأيام فقط حالياً.');
+      return;
+    }
+    if (attachments.length > 0) {
+      setErrorMessage('رفع المرفقات إلى Dynamics غير متاح حالياً؛ احذفها قبل الإرسال.');
+      return;
+    }
+    if (socialInsuranceOption !== 'yes' || takafulFundOption !== 'yes') {
+      setErrorMessage('خيارات التأمين غير مرتبطة بـ Dynamics حالياً؛ اتركها على الإعدادات الافتراضية.');
+      return;
+    }
     if (!isDraft && isBalanceExceeded) {
       setErrorMessage(`الرصيد المتاح (${availableBalance}) لا يكفي لتغطية الأيام المطلوبة (${requestedDays}).`);
+      return;
+    }
+    if (!delegatedEmployeeId || !delegatedEmployees.some((employee) => employee.id === delegatedEmployeeId)) {
+      setErrorMessage('يرجى اختيار القائم بالأعمال من القائمة.');
       return;
     }
 
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const chosenDelegated = delegatedEmployees.find((e) => e.id === delegatedEmployeeId) || delegatedEmployees[0];
+    const chosenDelegated = delegatedEmployees.find((e) => e.id === delegatedEmployeeId);
+    const currentUser = authService.getCurrentUser();
 
-    setTimeout(() => {
-      const newReq = d365Service.submitLeaveRequest({
+    try {
+      const response = await d365Service.submitLeaveRequest({
+        employeeId: currentUser?.id || '',
+        employeeName: currentUser?.name || '',
         leaveTypeCode: leaveTypeCode,
+        leaveTypeTitle: selectedBalance?.leaveTypeTitle || 'إجازة اعتيادية',
         startDate: startDate,
         endDate: endDate,
+        requestedDays: requestedDays,
+        saveAsDraft: isDraft,
         delegatedEmployeeId: chosenDelegated?.id || '',
+        delegatedEmployeeName: chosenDelegated?.name || '',
+        delegatedEmployeeTitle: chosenDelegated?.jobTitle || '',
         socialInsuranceOption: socialInsuranceOption === 'yes',
         healthInsuranceOption: takafulFundOption === 'yes',
         attachments: attachments.map((a) => ({
@@ -133,23 +164,36 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
           uploadDate: a.uploadDate,
         })),
         notes: notes || (isDraft ? 'مسودة طلب إجازة' : 'طلب إجازة رسمي'),
+        d365SyncStatus: 'Pending',
       });
 
       setIsSubmitting(false);
-      onSuccess(newReq.id);
-      onClose();
-    }, 400);
+
+      if (response.isSuccess && response.data) {
+        onSuccess(response.data.id);
+        onClose();
+      } else {
+        setErrorMessage(response.error || 'فشل في إرسال طلب الإجازة إلى Dynamics 365. الخادم لم يستجب بنجاح.');
+      }
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      setErrorMessage(err instanceof Error ? err.message : 'فشل غير متوقع أثناء إرسال طلب الإجازة');
+    }
   };
 
   return (
     <D365Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title="طلب الإجازة لـ هدى فتحي عبد المجيد"
+      title={`طلب الإجازة لـ ${authService.getCurrentUser()?.name || 'الموظف'}`}
       subtitle="بوابة الخدمة الذاتية للعاملين - Microsoft Dynamics 365 Human Resources"
       maxWidth="3xl"
     >
       <div className="space-y-4">
+        <div className="p-2.5 bg-[#FFF4CE] border border-[#E1C24B] text-[#323130] text-xs">
+          رقم القائم بالأعمال يُحفظ مؤقتاً في تعليق الطلب في Dynamics، وليس في حقل WorkerRecive.
+          المرفقات وخيارات التأمين غير مرتبطة حالياً؛ اترك خيارات التأمين على نعم ولا تضف مرفقات.
+        </div>
         {errorMessage && (
           <div className="p-2.5 bg-[#FDF3F2] border border-[#A80000] text-[#A80000] text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -190,6 +234,7 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                 onChange={(e) => setDelegatedEmployeeId(e.target.value)}
                 className="w-full h-8 px-2 bg-white text-xs text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none"
               >
+                <option value="">{delegatedEmployees.length ? 'اختر القائم بالأعمال' : 'لا يوجد موظفون مؤهلون في نفس الإدارة'}</option>
                 {delegatedEmployees.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.name} - {e.jobTitle}
@@ -238,6 +283,7 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
               <input
                 id="leaveStartDate"
                 type="date"
+                min={new Date().toISOString().slice(0, 10)}
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-full h-8 px-2 bg-white text-xs text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none font-mono"
@@ -252,6 +298,7 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
               <input
                 id="leaveEndDate"
                 type="date"
+                min={startDate || new Date().toISOString().slice(0, 10)}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="w-full h-8 px-2 bg-white text-xs text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none font-mono"
@@ -260,25 +307,28 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
           </div>
         </div>
 
-        {/* Accordion 1: المرفقات (Matching Screenshot 2) */}
+            {/* Accordion 1: المرفقات (Matching Screenshot 2) */}
         <div className="bg-white border border-[#D1D1D1]">
           <button
             type="button"
+            aria-expanded={isAttachmentsOpen}
+            aria-label={`المرفقات، ${isAttachmentsOpen ? 'موسع' : 'مطوي'}`}
             onClick={() => setIsAttachmentsOpen(!isAttachmentsOpen)}
-            className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors"
+            className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
             <span>المرفقات</span>
-            {isAttachmentsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {isAttachmentsOpen ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
           </button>
 
           {isAttachmentsOpen && (
             <div className="p-3 space-y-3">
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0078D4] text-white hover:bg-[#106EBE] text-xs font-semibold cursor-pointer transition-colors">
-                  <Upload className="w-3.5 h-3.5" />
+                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0078D4] text-white hover:bg-[#106EBE] text-xs font-semibold cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-[#0078D4]">
+                  <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>تحميل ملف جديد</span>
                   <input
                     type="file"
+                    aria-label="تحميل ملف مرفق جديد"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -302,7 +352,7 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                   <tbody>
                     {attachments.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="p-3 text-center text-[#8A8886]">
+                        <td colSpan={4} className="p-3 text-center text-[#605E5C]">
                           لا توجد مرفقات مضافة
                         </td>
                       </tr>
@@ -322,10 +372,11 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
                             <button
                               type="button"
                               onClick={() => removeAttachment(att.id)}
-                              className="p-1 text-[#A80000] hover:bg-[#FDF3F2] transition-colors"
+                              className="p-1 text-[#A80000] hover:bg-[#FDF3F2] transition-colors focus-visible:ring-2 focus-visible:ring-[#A80000] focus-visible:outline-none"
                               title="حذف المرفق"
+                              aria-label={`حذف المرفق ${att.fileName}`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                             </button>
                           </td>
                         </tr>
@@ -342,21 +393,25 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
         <div className="bg-white border border-[#D1D1D1]">
           <button
             type="button"
+            aria-expanded={isNotesOpen}
+            aria-label={`ملاحظات، ${isNotesOpen ? 'موسع' : 'مطوي'}`}
             onClick={() => setIsNotesOpen(!isNotesOpen)}
-            className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors"
+            className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
             <span>ملاحظات</span>
-            {isNotesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {isNotesOpen ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
           </button>
 
           {isNotesOpen && (
             <div className="p-3">
+              <label htmlFor="leaveNotes" className="sr-only">ملاحظات طلب الإجازة</label>
               <textarea
+                id="leaveNotes"
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="أدخل أي ملاحظات إضافية بخصوص طلب الإجازة هنا..."
-                className="w-full p-2 text-xs bg-white text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none"
+                className="w-full p-2 text-xs bg-white text-[#323130] placeholder-[#605E5C] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] focus-visible:ring-2 focus-visible:ring-[#0078D4] outline-none"
               ></textarea>
             </div>
           )}
@@ -366,11 +421,13 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
         <div className="bg-white border border-[#D1D1D1]">
           <button
             type="button"
+            aria-expanded={isBalancesOpen}
+            aria-label={`الأرصدة، ${isBalancesOpen ? 'موسع' : 'مطوي'}`}
             onClick={() => setIsBalancesOpen(!isBalancesOpen)}
-            className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors"
+            className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
             <span>الأرصدة</span>
-            {isBalancesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {isBalancesOpen ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
           </button>
 
           {isBalancesOpen && (
@@ -421,9 +478,9 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
             type="button"
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3.5 h-3.5" aria-hidden="true" />
             <span>إرسال</span>
           </button>
 
@@ -431,16 +488,16 @@ export const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({
             type="button"
             onClick={() => handleSubmit(true)}
             disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#323130] text-xs font-semibold border border-[#8A8886] transition-colors"
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#323130] text-xs font-semibold border border-[#8A8886] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
-            <Save className="w-3.5 h-3.5 text-[#0078D4]" />
+            <Save className="w-3.5 h-3.5 text-[#0078D4]" aria-hidden="true" />
             <span>حفظ المسودة</span>
           </button>
 
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center gap-1 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors"
+            className="flex items-center gap-1 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
             <span>إلغاء</span>
           </button>

@@ -24,7 +24,7 @@ export const PenaltyGrievanceDialog: React.FC<PenaltyGrievanceDialogProps> = ({
 
   if (!penalty) return null;
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!grievanceSubject.trim()) {
       setErrorMessage('يرجى كتابة نص التظلم وموضوعه قبل الإرسال.');
       return;
@@ -33,18 +33,28 @@ export const PenaltyGrievanceDialog: React.FC<PenaltyGrievanceDialogProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    setTimeout(() => {
-      d365Service.submitGrievance({
+    try {
+      const response = await d365Service.submitGrievance({
         penaltyId: penalty.id,
-        grievanceDate,
-        grievanceSubject: grievanceSubject.slice(0, 40),
+        penaltyNumber: penalty.penaltyNumber,
+        grievanceDate: new Date().toISOString().split('T')[0],
+        grievanceSubject: grievanceSubject.slice(0, 50),
         grievanceDetails: grievanceSubject,
         attachments: [],
       });
+
       setIsSubmitting(false);
-      onSuccess();
-      onClose();
-    }, 400);
+
+      if (response.isSuccess) {
+        onSuccess();
+        onClose();
+      } else {
+        setErrorMessage(response.error || 'فشل في إرسال طلب التظلم إلى خادم Dynamics 365.');
+      }
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      setErrorMessage(err instanceof Error ? err.message : 'فشل غير متوقع أثناء إرسال التظلم');
+    }
   };
 
   return (
@@ -70,8 +80,8 @@ export const PenaltyGrievanceDialog: React.FC<PenaltyGrievanceDialogProps> = ({
             <label htmlFor="grievanceDateInput" className="block text-xs font-semibold text-[#323130] mb-1">
               تاريخ طلب التظلم <span className="text-[#A80000]">*</span>
             </label>
-            <div className="flex items-center gap-2 bg-white px-2 py-1.5 border border-[#8A8886] focus-within:border-[#0078D4]">
-              <Calendar className="w-4 h-4 text-[#0078D4]" />
+            <div className="flex items-center gap-2 bg-white px-2 py-1.5 border border-[#8A8886] focus-within:border-[#0078D4] focus-within:ring-1 focus-within:ring-[#0078D4]">
+              <Calendar className="w-4 h-4 text-[#0078D4]" aria-hidden="true" />
               <input
                 id="grievanceDateInput"
                 type="date"
@@ -93,7 +103,7 @@ export const PenaltyGrievanceDialog: React.FC<PenaltyGrievanceDialogProps> = ({
               value={grievanceSubject}
               onChange={(e) => setGrievanceSubject(e.target.value)}
               placeholder="اكتب نص التظلم هنا..."
-              className="w-full p-2.5 text-xs bg-white text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none placeholder:text-[#8A8886]"
+              className="w-full p-2.5 text-xs bg-white text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] focus-visible:ring-2 focus-visible:ring-[#0078D4] outline-none placeholder:text-[#605E5C]"
             ></textarea>
           </div>
         </div>
@@ -104,16 +114,16 @@ export const PenaltyGrievanceDialog: React.FC<PenaltyGrievanceDialogProps> = ({
             type="button"
             onClick={handleSend}
             disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3.5 h-3.5" aria-hidden="true" />
             <span>{isSubmitting ? 'جاري الإرسال...' : 'إرسال'}</span>
           </button>
 
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center gap-1 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors"
+            className="flex items-center gap-1 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
             <span>إلغاء الأمر</span>
           </button>

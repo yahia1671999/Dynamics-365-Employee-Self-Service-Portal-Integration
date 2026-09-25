@@ -55,7 +55,12 @@ export const D365Dialog: React.FC<D365DialogProps> = ({
   }[maxWidth];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 select-none animate-in fade-in duration-150">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 animate-in fade-in duration-150"
+    >
       <div
         className={`w-full ${maxWidthClasses} bg-white border border-[#D1D1D1] shadow-2xl flex flex-col max-h-[90vh] text-right`}
         onClick={(e) => e.stopPropagation()}
@@ -63,7 +68,7 @@ export const D365Dialog: React.FC<D365DialogProps> = ({
         {/* D365 Dialog Header */}
         <div className="bg-[#002050] text-white px-4 py-2.5 flex items-center justify-between border-b border-[#00173a]">
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 bg-[#0078D4]"></div>
+            <div className="w-2.5 h-2.5 bg-[#0078D4]" aria-hidden="true"></div>
             <div>
               <h2 className="text-sm font-semibold tracking-wide">{title}</h2>
               {subtitle && <p className="text-[11px] text-[#C8C6C4] mt-0.5">{subtitle}</p>}
@@ -71,10 +76,11 @@ export const D365Dialog: React.FC<D365DialogProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-[#003366] text-[#C8C6C4] hover:text-white transition-colors"
+            className="p-1 hover:bg-[#003366] text-[#C8C6C4] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
             title="إغلاق (Esc)"
+            aria-label="إغلاق النافذة"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -90,7 +96,7 @@ export const D365Dialog: React.FC<D365DialogProps> = ({
               <button
                 type="button"
                 onClick={onTertiaryAction}
-                className="px-3 py-1.5 bg-white hover:bg-[#EDEBE9] border border-[#8A8886] text-xs text-[#323130] transition-colors"
+                className="px-3 py-1.5 bg-white hover:bg-[#EDEBE9] border border-[#8A8886] text-xs text-[#323130] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
               >
                 {tertiaryActionLabel}
               </button>
@@ -103,7 +109,7 @@ export const D365Dialog: React.FC<D365DialogProps> = ({
                 type="button"
                 onClick={onPrimaryAction}
                 disabled={primaryActionDisabled}
-                className="px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] active:bg-[#005A9E] disabled:bg-[#C8C6C4] disabled:text-[#A19F9D] text-xs font-semibold text-white transition-colors shadow-xs"
+                className="px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] active:bg-[#005A9E] disabled:bg-[#C8C6C4] disabled:text-[#605E5C] text-xs font-semibold text-white transition-colors shadow-xs focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
               >
                 {primaryActionLabel}
               </button>
@@ -112,7 +118,7 @@ export const D365Dialog: React.FC<D365DialogProps> = ({
             <button
               type="button"
               onClick={onSecondaryAction || onClose}
-              className="px-4 py-1.5 bg-white hover:bg-[#EDEBE9] border border-[#8A8886] text-xs text-[#323130] transition-colors"
+              className="px-4 py-1.5 bg-white hover:bg-[#EDEBE9] border border-[#8A8886] text-xs text-[#323130] transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
             >
               {secondaryActionLabel}
             </button>

@@ -191,7 +191,7 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
     setCompletionAttachments((prev) => prev.filter((a) => a.id !== attId));
   };
 
-  const handleSubmitCompletedRequest = (e: React.FormEvent) => {
+  const handleSubmitCompletedRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!completingRequest) return;
 
@@ -222,7 +222,7 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
             testNotes: completionNotes,
           };
 
-    d365Service.completeMonitoringRequest(
+    await d365Service.completeMonitoringRequest(
       completingRequest.id,
       submittedData,
       completionAttachments
@@ -236,14 +236,16 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
   };
 
   // Status transition simulation inside Details modal
-  const handleTransitionStatus = (
+  const handleTransitionStatus = async (
     requestId: string,
     nextStatus: MonitoringRequestStatus,
     note?: string
   ) => {
-    const updated = d365Service.updateMonitoringRequestStatus(requestId, nextStatus, note);
-    setSelectedRecord({ ...updated });
-    onSuccess?.(`تم تحديث حالة الطلب إلى "${nextStatus}" بنجاح.`);
+    const res = await d365Service.updateMonitoringRequestStatus(requestId, nextStatus, note);
+    if (res.isSuccess && res.data) {
+      setSelectedRecord({ ...res.data });
+      onSuccess?.(`تم تحديث حالة الطلب إلى "${nextStatus}" بنجاح.`);
+    }
   };
 
   // Filtered operations
@@ -288,7 +290,7 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
     );
   };
 
-  const handleDisclosureSubmit = (e: React.FormEvent) => {
+  const handleDisclosureSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!realEstateSummary.trim() && !cashAndDepositsSummary.trim() && !movableAssetsSummary.trim()) {
       setDisclosureError('يرجى تعبئة بيان الأصول أو الحسابات أو الأملاك المنقولة على الأقل.');
@@ -300,7 +302,7 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
     }
 
     setDisclosureError(null);
-    const newRecord = d365Service.submitFinancialDisclosure({
+    const res = await d365Service.submitFinancialDisclosure({
       disclosureType,
       filingYear,
       entity: disclosureEntity,
@@ -312,18 +314,22 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
       attachmentsCount: disclosureAttachments.length,
     });
 
-    onSuccess?.(
-      `تم تقديم إقرار الذمة المالية بنجاح برقم: ${newRecord.referenceNumber} وحالته "تم التقديم"`
-    );
-    setRealEstateSummary('');
-    setMovableAssetsSummary('');
-    setCashAndDepositsSummary('');
-    setDebtsAndLiabilitiesSummary('');
-    setDisclosureDeclarationChecked(false);
-    setActiveTab('records');
+    if (res.isSuccess && res.data) {
+      onSuccess?.(
+        `تم تقديم إقرار الذمة المالية بنجاح برقم: ${res.data.referenceNumber} وحالته "تم التقديم"`
+      );
+      setRealEstateSummary('');
+      setMovableAssetsSummary('');
+      setCashAndDepositsSummary('');
+      setDebtsAndLiabilitiesSummary('');
+      setDisclosureDeclarationChecked(false);
+      setActiveTab('records');
+    } else {
+      setDisclosureError(res.error || 'فشل في حفظ إقرار الذمة المالية.');
+    }
   };
 
-  const handleTestSubmit = (e: React.FormEvent) => {
+  const handleTestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportNumber.trim()) {
       setTestError('يرجى إدخال رقم التقرير الطبي المعتمد.');
@@ -335,7 +341,7 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
     }
 
     setTestError(null);
-    const newRecord = d365Service.submitDrugOrMedicalTest({
+    const res = await d365Service.submitDrugOrMedicalTest({
       testType,
       testDate,
       entity: testEntity,
@@ -346,13 +352,17 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
       attachmentsCount: testAttachments.length,
     });
 
-    onSuccess?.(
-      `تم تقديم نتيجة اختبار الكشف والمخدرات بنجاح برقم: ${newRecord.referenceNumber} وحالته "تم التقديم"`
-    );
-    setReportNumber('');
-    setTestNotes('');
-    setTestDeclarationChecked(false);
-    setActiveTab('records');
+    if (res.isSuccess && res.data) {
+      onSuccess?.(
+        `تم تقديم نتيجة اختبار الكشف والمخدرات بنجاح برقم: ${res.data.referenceNumber} وحالته "تم التقديم"`
+      );
+      setReportNumber('');
+      setTestNotes('');
+      setTestDeclarationChecked(false);
+      setActiveTab('records');
+    } else {
+      setTestError(res.error || 'فشل في تسجيل نتيجة الفحص الطبي.');
+    }
   };
 
   // Status Badge UI helper
@@ -409,13 +419,13 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
     >
       <div className="space-y-3">
         {/* Navigation Tabs */}
-        <div className="flex border-b border-[#D1D1D1] bg-[#FAF9F8] px-2 pt-2 gap-1 text-xs select-none">
+        <div className="flex border-b border-[#D1D1D1] bg-[#FAF9F8] px-2 pt-2 gap-1 text-xs">
           <button
             onClick={() => {
               setActiveTab('records');
               setCompletingRequest(null);
             }}
-            className="flex items-center gap-1.5 px-4 py-2 border-b-2 border-[#0078D4] text-[#0078D4] bg-white font-bold transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 border-b-2 border-[#0078D4] text-[#0078D4] bg-white font-bold transition-colors focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
           >
             <Shield className="w-3.5 h-3.5" />
             <span>طلبات الرقابة والامتثال ({operations.length})</span>
@@ -688,9 +698,10 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
               <button
                 type="button"
                 onClick={() => setCompletingRequest(null)}
-                className="p-1 hover:bg-[#C7E0F4] rounded text-[#605E5C]"
+                aria-label="إغلاق نموذج استكمال الطلب"
+                className="p-1 hover:bg-[#C7E0F4] rounded text-[#605E5C] focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -809,10 +820,11 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
                           <button
                             type="button"
                             onClick={() => handleRemoveAttachment(att.id)}
-                            className="text-[#A80000] hover:bg-[#FDE7E9] p-1 rounded transition-colors shrink-0"
+                            className="text-[#A80000] hover:bg-[#FDE7E9] p-1 rounded transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-[#A80000] focus-visible:outline-none"
                             title="حذف المرفق"
+                            aria-label={`حذف المرفق ${att.fileName}`}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                           </button>
                         </div>
                       ))}
@@ -1227,9 +1239,10 @@ export const MonitoringDialog: React.FC<MonitoringDialogProps> = ({
               </div>
               <button
                 onClick={() => setSelectedRecord(null)}
-                className="p-1 hover:bg-[#EDEBE9] rounded"
+                aria-label="إغلاق نافذة تفاصيل الطلب"
+                className="p-1 hover:bg-[#EDEBE9] rounded focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none"
               >
-                <X className="w-4 h-4 text-[#605E5C]" />
+                <X className="w-4 h-4 text-[#605E5C]" aria-hidden="true" />
               </button>
             </div>
 

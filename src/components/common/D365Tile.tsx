@@ -52,10 +52,23 @@ export const D365Tile: React.FC<D365TileProps> = ({
 
   return (
     <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `${title}: ${count} ${unit || ''}` : undefined}
       onClick={onClick}
-      className={`bg-white border-x border-b border-[#D1D1D1] ${getAccentBorder()} p-3.5 transition-all select-none ${
+      onKeyDown={
         onClick
-          ? 'cursor-pointer hover:border-[#0078D4] hover:bg-[#FAF9F8] hover:shadow-xs active:bg-[#F3F2F1]'
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`bg-white border-x border-b border-[#D1D1D1] ${getAccentBorder()} p-3.5 transition-all ${
+        onClick
+          ? 'cursor-pointer hover:border-[#0078D4] hover:bg-[#FAF9F8] hover:shadow-xs active:bg-[#F3F2F1] focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none'
           : ''
       }`}
     >
@@ -74,12 +87,12 @@ export const D365Tile: React.FC<D365TileProps> = ({
             {unit && <span className="text-xs font-medium text-[#605E5C]">{unit}</span>}
           </div>
           {subtitle && (
-            <div className="text-[11px] text-[#8A8886] mt-1 truncate">{subtitle}</div>
+            <div className="text-[11px] text-[#605E5C] mt-1 truncate">{subtitle}</div>
           )}
         </div>
 
         {Icon && (
-          <div className={`p-2 ${getIconColor()} rounded-none shrink-0`}>
+          <div className={`p-2 ${getIconColor()} rounded-none shrink-0`} aria-hidden="true">
             <Icon className="w-5 h-5" />
           </div>
         )}

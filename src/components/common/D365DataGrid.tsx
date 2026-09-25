@@ -84,7 +84,7 @@ export function D365DataGrid<T>({
   };
 
   return (
-    <div className="bg-white border border-[#D1D1D1] select-none text-xs">
+    <div className="bg-white border border-[#D1D1D1] text-xs">
       {/* Grid Toolbar */}
       <div className="bg-[#FAF9F8] border-b border-[#D1D1D1] px-3 py-2 flex flex-wrap items-center justify-between gap-2">
         {title && <span className="font-semibold text-xs text-[#323130]">{title}</span>}
@@ -93,12 +93,13 @@ export function D365DataGrid<T>({
           <div className="relative w-64">
             <input
               type="text"
+              aria-label={searchPlaceholder || 'بحث في السجلات'}
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-7 pl-7 pr-2.5 text-xs bg-white text-[#323130] placeholder-[#8A8886] border border-[#8A8886] focus:border-[#0078D4] focus:outline-none transition-all"
+              className="w-full h-7 pl-7 pr-2.5 text-xs bg-white text-[#323130] placeholder-[#605E5C] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none transition-all"
             />
-            <Search className="w-3.5 h-3.5 absolute left-2 top-2 text-[#8A8886]" />
+            <Search className="w-3.5 h-3.5 absolute left-2 top-2 text-[#605E5C]" aria-hidden="true" />
           </div>
 
           <div className="text-[11px] text-[#605E5C] font-mono px-2 py-1 bg-white border border-[#D1D1D1]">
@@ -113,25 +114,34 @@ export function D365DataGrid<T>({
           <thead>
             <tr className="bg-[#F3F2F1] border-b border-[#D1D1D1] text-[#323130]">
               <th className="w-8 px-2 py-2 text-center border-l border-[#EDEBE9]">
-                <span className="text-[10px] text-[#8A8886]">#</span>
+                <span className="text-[10px] text-[#605E5C]">#</span>
               </th>
               {columns.map((col) => (
                 <th
                   key={col.key}
                   style={{ width: col.width }}
                   onClick={() => col.sortable !== false && handleSort(col.key)}
-                  className={`px-3 py-2 font-semibold text-[11px] text-[#323130] border-l border-[#EDEBE9] ${
+                  onKeyDown={(e) => {
+                    if (col.sortable !== false && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      handleSort(col.key);
+                    }
+                  }}
+                  tabIndex={col.sortable !== false ? 0 : undefined}
+                  role={col.sortable !== false ? 'button' : undefined}
+                  aria-label={col.sortable !== false ? `ترتيب حسب ${col.header}` : undefined}
+                  className={`px-3 py-2 font-semibold text-[11px] text-[#323130] border-l border-[#EDEBE9] focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none ${
                     col.sortable !== false ? 'cursor-pointer hover:bg-[#EDEBE9]' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between gap-1">
                     <span>{col.header}</span>
                     {col.sortable !== false && (
-                      <span className="text-[#8A8886]">
+                      <span className="text-[#605E5C]">
                         {sortKey === col.key ? (
                           sortAsc ? <ChevronUp className="w-3 h-3 text-[#0078D4]" /> : <ChevronDown className="w-3 h-3 text-[#0078D4]" />
                         ) : (
-                          <ArrowUpDown className="w-2.5 h-2.5 opacity-40" />
+                          <ArrowUpDown className="w-2.5 h-2.5 opacity-60" />
                         )}
                       </span>
                     )}
@@ -150,10 +160,10 @@ export function D365DataGrid<T>({
               <tr>
                 <td
                   colSpan={columns.length + (actions ? 2 : 1)}
-                  className="py-10 text-center text-[#8A8886] bg-[#FAF9F8]"
+                  className="py-10 text-center text-[#605E5C] bg-[#FAF9F8]"
                 >
                   <div className="flex flex-col items-center justify-center gap-1.5">
-                    <Filter className="w-6 h-6 text-[#A19F9D]" />
+                    <Filter className="w-6 h-6 text-[#605E5C]" />
                     <span className="text-xs">{emptyMessage}</span>
                   </div>
                 </td>

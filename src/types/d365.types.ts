@@ -4,22 +4,37 @@
  * OData Entity Schemas: HcmWorker, HcmLeaveBalance, HcmLeaveRequest, HcmDisciplinaryAction, HcmCourseAttendance
  */
 
+export interface EmployeePersonalDetails {
+  maritalStatus: string; // الحالة الاجتماعية e.g. 'متزوجة'
+  maritalStatusDate: string; // تاريخ الحالة الاجتماعية e.g. '2012-04-18'
+  dependentsCount: number | string; // عدد المعالين e.g. 2
+  spouseWorking: 'نعم' | 'لا' | string; // الزوجة تعمل e.g. 'نعم'
+  religion: string; // الديانة e.g. 'مسلم'
+  educationQualification: string; // المؤهل العلمي e.g. 'بكالوريوس حاسبات ومعلومات - علوم الحاسب'
+  retirementDate: string; // تاريخ الإحالة إلى المعاش e.g. '2045-09-18'
+  isDisabled: 'نعم' | 'لا' | string; // شخص معاق e.g. 'لا'
+  verificationDate: string; // تاريخ التحقق e.g. '2024-01-10'
+}
+
 export interface Employee {
-  id: string; // WorkerPersonnelNumber (e.g., 'EMP-10492')
-  name: string; // WorkerName (e.g., 'أحمد محمد عبد الله')
-  jobTitle: string; // JobDescription (e.g., 'مهندس برمجيات أول')
-  department: string; // DepartmentName (e.g., 'الإدارة العامة لتقنية المعلومات')
-  division: string; // Division / Section (e.g., 'قسم تطوير تطبيقات المؤسسة')
-  hireDate: string; // EmploymentStartDate (e.g., '2019-03-15')
+  id: string; // WorkerPersonnelNumber
+  name: string; // WorkerName
+  jobTitle: string; // JobDescription
+  department: string; // DepartmentName
+  division: string; // Division / Section
+  hireDate: string; // EmploymentStartDate
+  yearsOfService?: string; // سنوات الخدمة (e.g. '6 سنوات')
   directManager: string; // ReportsToWorkerName (e.g., 'د. سامي فهد العمر')
   jobGrade: string; // CompensationGrade (e.g., 'المرتبة السابعة - الدرجة 3')
-  employmentStatus: 'Active' | 'OnLeave' | 'Terminated'; // EmploymentStatus
+  jobGroup?: string; // PAR_JobType description
+  employmentStatus: string; // Dynamics status, when exposed
   employmentStatusAr: string; // 'على رأس العمل - نشط'
   email: string;
   phone: string;
   legalEntity: string; // DataAreaId (e.g., 'USMF' / 'شركة التقنية المتقدمة')
   civilId: string; // National ID / Iqama
   avatarUrl?: string;
+  personalDetails?: EmployeePersonalDetails;
 }
 
 export type LeaveTypeCode =
@@ -32,13 +47,15 @@ export type LeaveTypeCode =
   | 'CHILD_CARE'
   | 'COMPENSATORY'
   | 'HAJJ'
-  | 'BEREAVEMENT';
+  | 'BEREAVEMENT'
+  | 'PTO'
+  | 'VACATION';
 
 export interface LeaveBalance {
   id: string;
   leaveTypeCode: LeaveTypeCode;
   leaveTypeTitle: string; // e.g., 'اجازة اعتيادي'
-  unit: 'أيام' | 'ساعات'; // Unit of measure
+  unit: string; // Unit of measure returned by Dynamics
   currentBalance: number; // Current available balance e.g. 24.00
   allocatedBalance: number; // Annual allocation e.g. 30.00
   consumedBalance: number; // Used this year
@@ -61,6 +78,7 @@ export interface LeaveMovementTransaction {
 export type LeaveRequestStatus = 'Draft' | 'Submitted' | 'InReview' | 'Approved' | 'Rejected' | 'Canceled';
 
 export interface LeaveRequest {
+  saveAsDraft?: boolean;
   id: string; // RequestId e.g., 'LR-2026-089'
   employeeId: string;
   employeeName: string;
@@ -353,4 +371,39 @@ export interface TeamMember {
   performance: TeamMemberPerformance;
   penalties: TeamMemberPenalty[];
   requests: TeamMemberRequest[];
+}
+
+export type RequestStatusCode =
+  | 'Draft'
+  | 'InReview'
+  | 'PendingApproval'
+  | 'Approved'
+  | 'Rejected';
+
+export type RequestStatusAr =
+  | 'مسودة'
+  | 'قيد المراجعة'
+  | 'بانتظار الموافقة'
+  | 'تمت الموافقة'
+  | 'مرفوض';
+
+export interface RecentRequest {
+  requestNumber: string; // رقم الطلب (e.g. 'REQ-LR-2026-089')
+  requestType: string; // نوع الطلب (e.g. 'طلب إجازة اعتيادية')
+  category: 'LEAVE' | 'PERMISSION' | 'SECONDMENT' | 'LOAN' | 'TRANSFER' | 'GRIEVANCE' | 'MONITORING';
+  submissionDate: string; // تاريخ التقديم (e.g. '2026-09-18')
+  fromDate?: string; // من تاريخ (e.g. '2026-10-01')
+  toDate?: string; // إلى تاريخ (e.g. '2026-10-05')
+  status: RequestStatusCode;
+  statusAr: RequestStatusAr;
+  employeeName: string;
+  employeeId: string;
+  notes?: string;
+  details?: string;
+  workflowStep?: string;
+}
+
+export interface UnifiedRequestItem extends RecentRequest {
+  id: string;
+  referenceNumber?: string;
 }

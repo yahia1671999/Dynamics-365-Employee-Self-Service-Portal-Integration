@@ -39,8 +39,12 @@ import { QuickActionDialog, QuickActionType } from './components/requests/QuickA
 import { D365ApiInspectorDialog } from './components/integration/D365ApiInspectorDialog';
 import { MyTeamView } from './components/team/MyTeamView';
 import { LoginPage } from './components/auth/LoginPage';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { d365Service } from './services/d365Service';
+import { authService, RegisteredUser, AuthEventReason } from './services/authService';
+import { D365ConfigurationAlert } from './components/common/D365ConfigurationAlert';
 import { exportToCsv } from './utils/exportUtils';
+import { UnifiedRequestItem } from './types/d365.types';
 import {
   Employee,
   LeaveBalance,
@@ -57,37 +61,82 @@ import {
 
 type ActiveModule = 'dashboard' | 'team' | 'leave-balance' | 'penalties' | 'training';
 
+function getModuleFromPath(path: string): ActiveModule {
+  if (path.startsWith('/team')) return 'team';
+  if (path.startsWith('/leave-balance')) return 'leave-balance';
+  if (path.startsWith('/penalties')) return 'penalties';
+  if (path.startsWith('/training')) return 'training';
+  return 'dashboard';
+}
+
 export default function App() {
-  // Authentication State
+  // Authentication State governed by central Authentication Service
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('d365_is_authenticated') === 'true';
+    return authService.isAuthenticated();
+  });
+  const [currentUser, setCurrentUser] = useState<RegisteredUser | null>(() => {
+    return authService.getCurrentUser();
   });
   const [authenticatedCardId, setAuthenticatedCardId] = useState<string>(() => {
-    return localStorage.getItem('d365_remembered_card') || '28509180102934';
+    return authService.getCurrentUser()?.civilId || authService.getRememberedCardId() || '';
+  });
+
+  // URL Routing State: "/" opens Login, "/dashboard" and portal routes are protected
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname || '/';
+      const isAuth = authService.isAuthenticated();
+      // If user is authenticated and lands on "/" or "/login", redirect to "/dashboard"
+      if (isAuth && (p === '/' || p === '/login')) {
+        window.history.replaceState({}, '', '/dashboard');
+        return '/dashboard';
+      }
+      // If user is not authenticated and lands on protected route, redirect to "/" (Login)
+      if (!isAuth && p !== '/' && p !== '/login') {
+        window.history.replaceState({}, '', '/');
+        return '/';
+      }
+      return p;
+    }
+    return '/';
   });
 
   // Service Data State
-  const [employee, setEmployee] = useState<Employee>(d365Service.getEmployee());
-  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>(d365Service.getLeaveBalances());
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(d365Service.getLeaveRequests());
-  const [penalties, setPenalties] = useState<Penalty[]>(d365Service.getPenalties());
-  const [trainingCourses, setTrainingCourses] = useState<TrainingCourse[]>(d365Service.getTrainingCourses());
-  const [performanceEvaluations, setPerformanceEvaluations] = useState<PerformanceEvaluation[]>(
+  const [employee, setEmployee] = useState<Employee>(() => d365Service.getEmployee());
+  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>(() => d365Service.getLeaveBalances());
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => d365Service.getLeaveRequests());
+  const [penalties, setPenalties] = useState<Penalty[]>(() => d365Service.getPenalties());
+  const [trainingCourses, setTrainingCourses] = useState<TrainingCourse[]>(() => d365Service.getTrainingCourses());
+  const [performanceEvaluations, setPerformanceEvaluations] = useState<PerformanceEvaluation[]>(() =>
     d365Service.getPerformanceEvaluations()
   );
-  const [monitoringOperations, setMonitoringOperations] = useState<MonitoringOperation[]>(
+  const [monitoringOperations, setMonitoringOperations] = useState<MonitoringOperation[]>(() =>
     d365Service.getMonitoringOperations()
   );
-  const [notifications, setNotifications] = useState<D365Notification[]>(d365Service.getNotifications());
-  const [delegatedEmployees, setDelegatedEmployees] = useState<DelegatedEmployee[]>(
+  const [notifications, setNotifications] = useState<D365Notification[]>(() => d365Service.getNotifications());
+  const [delegatedEmployees, setDelegatedEmployees] = useState<DelegatedEmployee[]>(() =>
     d365Service.getDelegatedEmployees()
   );
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(d365Service.getTeamMembers());
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => d365Service.getTeamMembers());
+  const [unifiedRequests, setUnifiedRequests] = useState<UnifiedRequestItem[]>(() =>
+    d365Service.getUnifiedRequests()
+  );
 
-  // Active View Module
-  const [activeModule, setActiveModule] = useState<ActiveModule>('dashboard');
+  // Dynamics 365 Real Backend Configuration State
+  const [isD365Configured, setIsD365Configured] = useState(() => d365Service.getIsConfigured());
+  const [missingConfigFields, setMissingConfigFields] = useState<string[]>(() => d365Service.getMissingFields());
+  const [configErrorMessage, setConfigErrorMessage] = useState<string | null>(() => d365Service.getConfigErrorMessage());
+  const [isCheckingConfig, setIsCheckingConfig] = useState(false);
 
-  // Dialogs State
+  // Active View Module derived from current URL
+  const [activeModule, setActiveModule] = useState<ActiveModule>(() => {
+    if (typeof window !== 'undefined') {
+      return getModuleFromPath(window.location.pathname || '/');
+    }
+    return 'dashboard';
+  });
+
+  // Dialogs and Notification State
   const [isLeaveBalanceDialogOpen, setIsLeaveBalanceDialogOpen] = useState(false);
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
   const [isPenaltiesDialogOpen, setIsPenaltiesDialogOpen] = useState(false);
@@ -96,14 +145,60 @@ export default function App() {
   const [isMonitoringDialogOpen, setIsMonitoringDialogOpen] = useState(false);
   const [monitoringMode, setMonitoringMode] = useState<'records' | 'disclosure' | 'test'>('records');
   const [activeQuickAction, setActiveQuickAction] = useState<QuickActionType | null>(null);
-
   const [initialLeaveTypeForDialog, setInitialLeaveTypeForDialog] = useState<LeaveTypeCode>('ANNUAL');
   const [isODataInspectorOpen, setIsODataInspectorOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Sync state with service subscriber
+  const navigate = (toPath: string, replace = false) => {
+    if (typeof window !== 'undefined') {
+      if (replace) {
+        window.history.replaceState({}, '', toPath);
+      } else {
+        window.history.pushState({}, '', toPath);
+      }
+    }
+    setCurrentPath(toPath);
+    setActiveModule(getModuleFromPath(toPath));
+  };
+
+  // Browser popstate listener for back/forward navigation
   useEffect(() => {
-    const unsubscribe = d365Service.subscribe(() => {
+    const enforceRouting = () => {
+      const p = window.location.pathname || '/';
+      const isAuth = authService.isAuthenticated();
+      setIsAuthenticated(isAuth);
+      if (!isAuth) {
+        if (p !== '/' && p !== '/login') {
+          window.history.replaceState({}, '', '/');
+          setCurrentPath('/');
+          setActiveModule('dashboard');
+          return;
+        }
+      } else {
+        if (p === '/' || p === '/login') {
+          window.history.replaceState({}, '', '/dashboard');
+          setCurrentPath('/dashboard');
+          setActiveModule('dashboard');
+          return;
+        }
+      }
+      setCurrentPath(p);
+      setActiveModule(getModuleFromPath(p));
+    };
+
+    // Check immediately on mount
+    enforceRouting();
+
+    window.addEventListener('popstate', enforceRouting);
+    return () => window.removeEventListener('popstate', enforceRouting);
+  }, []);
+
+  // Sync state with authentication service and D365 service subscribers
+  useEffect(() => {
+    const unsubD365 = d365Service.subscribe(() => {
+      setIsD365Configured(d365Service.getIsConfigured());
+      setMissingConfigFields(d365Service.getMissingFields());
+      setConfigErrorMessage(d365Service.getConfigErrorMessage());
       setEmployee(d365Service.getEmployee());
       setLeaveBalances(d365Service.getLeaveBalances());
       setLeaveRequests(d365Service.getLeaveRequests());
@@ -114,21 +209,64 @@ export default function App() {
       setNotifications(d365Service.getNotifications());
       setDelegatedEmployees(d365Service.getDelegatedEmployees());
       setTeamMembers(d365Service.getTeamMembers());
+      setUnifiedRequests(d365Service.getUnifiedRequests());
     });
-    return () => unsubscribe();
+
+    const unsubAuth = authService.subscribe((user, reason) => {
+      const isAuth = authService.isAuthenticated();
+      setIsAuthenticated(isAuth);
+      setCurrentUser(user);
+      if (user) {
+        setAuthenticatedCardId(user.civilId);
+        d365Service.setEmployee({
+          name: user.name,
+          civilId: user.civilId,
+          jobTitle: user.jobTitle,
+          department: user.department,
+          email: user.email,
+          phone: user.phone || '',
+        });
+      } else {
+        navigate('/', true);
+        if (reason === 'EXPIRED') {
+          showToast('انتهت صلاحية الجلسة لأسباب أمنية. يرجى تسجيل الدخول مجدداً.');
+        } else if (reason === 'TAMPER_DETECTED') {
+          showToast('تم رفض الوصول: تم رصد محاولة غير مصرح بها للتلاعب ببيانات الجلسة أو التخزين.');
+        }
+      }
+    });
+
+    return () => {
+      unsubD365();
+      unsubAuth();
+    };
   }, []);
 
-  const handleRefresh = () => {
-    setEmployee(d365Service.getEmployee());
-    setLeaveBalances(d365Service.getLeaveBalances());
-    setLeaveRequests(d365Service.getLeaveRequests());
-    setPenalties(d365Service.getPenalties());
-    setTrainingCourses(d365Service.getTrainingCourses());
-    setPerformanceEvaluations(d365Service.getPerformanceEvaluations());
-    setMonitoringOperations(d365Service.getMonitoringOperations());
-    setNotifications(d365Service.getNotifications());
-    setTeamMembers(d365Service.getTeamMembers());
-    showToast('تم تحديث البيانات بنجاح من خدمة Microsoft Dynamics 365.');
+  const handleRecheckConfig = async () => {
+    setIsCheckingConfig(true);
+    showToast('جارٍ فحص تكوين Dynamics 365 على خادم ASP.NET Core...');
+    const result = await d365Service.checkConfiguration();
+    setIsCheckingConfig(false);
+    if (result.isConfigured) {
+      showToast('تم التحقق من تكوين Dynamics 365 بنجاح! تم الاتصال بالبيئة.');
+    } else {
+      showToast('تنبيه: التكوين غير مكتمل - ' + (result.missingFields.slice(0, 2).join(', ')));
+    }
+  };
+
+  const handleRefresh = async () => {
+    showToast('جاري الاتصال بخدمات Microsoft Dynamics 365 عبر خادم ASP.NET Core...');
+    const configResult = await d365Service.checkConfiguration();
+    if (!configResult.isConfigured) {
+      showToast('تنبيه: تكوين Dynamics 365 مفقود أو غير مكتمل على الخادم.');
+      return;
+    }
+    const syncResult = await d365Service.refreshAll();
+    if (syncResult.overall === 'success') {
+      showToast('تمت المزامنة بنجاح مع Microsoft Dynamics 365 (200 OK)');
+    } else if (syncResult.overall === 'error') {
+      showToast(syncResult.errorMessage || 'فشل الاتصال بخدمة Dynamics 365 OData.');
+    }
   };
 
   const showToast = (msg: string) => {
@@ -136,16 +274,32 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleLoginSuccess = (cardId: string) => {
-    setIsAuthenticated(true);
-    setAuthenticatedCardId(cardId);
-    localStorage.setItem('d365_is_authenticated', 'true');
-    showToast('تم تسجيل الدخول بنجاح عبر بطاقة الرقم القومي. مرحباً بك في بوابة Microsoft Dynamics 365.');
+  const handleLoginSuccess = (cardId: string, user?: RegisteredUser) => {
+    const activeUser = authService.getCurrentUser() || user;
+    setIsAuthenticated(authService.isAuthenticated());
+    if (activeUser) {
+      setCurrentUser(activeUser);
+      setAuthenticatedCardId(activeUser.civilId);
+      d365Service.setEmployee({
+        name: activeUser.name,
+        civilId: activeUser.civilId,
+        jobTitle: activeUser.jobTitle,
+        department: activeUser.department,
+        email: activeUser.email,
+        phone: activeUser.phone || '+20 10 1234 5678',
+      });
+    }
+    navigate('/dashboard');
+    void d365Service.refreshAll();
+    showToast('تم تسجيل الدخول بنجاح عبر خدمة التحقق الأمني. مرحباً بك في بوابة Microsoft Dynamics 365.');
   };
 
   const handleLogout = () => {
+    authService.logout('LOGOUT');
     setIsAuthenticated(false);
-    localStorage.removeItem('d365_is_authenticated');
+    setCurrentUser(null);
+    navigate('/', true);
+    showToast('تم تسجيل الخروج بنجاح.');
   };
 
   const handleOpenNewLeave = (type?: LeaveTypeCode) => {
@@ -242,8 +396,8 @@ export default function App() {
     }
   };
 
-  // If user is not logged in, render the Enterprise Login Page
-  if (!isAuthenticated) {
+  // If user is not logged in or route is login, render the Enterprise Login Page
+  if (!isAuthenticated || currentPath === '/' || currentPath === '/login') {
     return (
       <LoginPage
         onLoginSuccess={handleLoginSuccess}
@@ -284,82 +438,128 @@ export default function App() {
         <D365Tabs
           tabs={navigationTabs}
           activeTabId={activeModule}
-          onTabChange={(id) => setActiveModule(id as ActiveModule)}
+          onTabChange={(id) => navigate(`/${id}`)}
         />
       </nav>
 
-      {/* 3. Main Workspace Canvas */}
+      {/* 3. Main Workspace Canvas (Protected Routes) */}
       <main className="flex-1 p-3 sm:p-4 max-w-7xl w-full mx-auto">
+        {/* Dynamics 365 Real Configuration Missing Alert Banner */}
+        <D365ConfigurationAlert
+          isConfigured={isD365Configured}
+          missingFields={missingConfigFields}
+          errorMessage={configErrorMessage}
+          onRefresh={handleRecheckConfig}
+          isChecking={isCheckingConfig}
+        />
+
         {activeModule === 'dashboard' && (
-          <EmployeeDashboardView
-            employee={employee}
-            leaveBalances={leaveBalances}
-            leaveRequests={leaveRequests}
-            penalties={penalties}
-            trainingCourses={trainingCourses}
-            performanceEvaluations={performanceEvaluations}
-            monitoringOperations={monitoringOperations}
-            onOpenNewLeave={() => handleOpenNewLeave()}
-            onOpenLeaveBalanceDialog={() => setIsLeaveBalanceDialogOpen(true)}
-            onOpenPenaltiesDialog={() => setIsPenaltiesDialogOpen(true)}
-            onOpenTrainingDialog={() => setIsTrainingCoursesDialogOpen(true)}
-            onOpenPerformanceDialog={() => setIsPerformanceDialogOpen(true)}
-            onOpenMonitoringDialog={(mode = 'records') => {
-              setMonitoringMode(mode);
-              setIsMonitoringDialogOpen(true);
-            }}
-            onQuickAction={(actionType) => setActiveQuickAction(actionType)}
-            onRefresh={handleRefresh}
-            onExportExcel={handleExportExcel}
-            onNavigateToTeam={() => setActiveModule('team')}
-          />
+          <ProtectedRoute
+            module="dashboard"
+            title="لوحة معلومات الموظف (Dashboard)"
+            currentUser={currentUser}
+            onNavigateHome={() => navigate('/dashboard')}
+          >
+            <EmployeeDashboardView
+              employee={employee}
+              leaveBalances={leaveBalances}
+              leaveRequests={leaveRequests}
+              penalties={penalties}
+              trainingCourses={trainingCourses}
+              performanceEvaluations={performanceEvaluations}
+              monitoringOperations={monitoringOperations}
+              unifiedRequests={unifiedRequests}
+              onOpenNewLeave={() => handleOpenNewLeave()}
+              onOpenLeaveBalanceDialog={() => setIsLeaveBalanceDialogOpen(true)}
+              onOpenPenaltiesDialog={() => setIsPenaltiesDialogOpen(true)}
+              onOpenTrainingDialog={() => setIsTrainingCoursesDialogOpen(true)}
+              onOpenPerformanceDialog={() => setIsPerformanceDialogOpen(true)}
+              onOpenMonitoringDialog={(mode = 'records') => {
+                setMonitoringMode(mode);
+                setIsMonitoringDialogOpen(true);
+              }}
+              onQuickAction={(actionType) => setActiveQuickAction(actionType)}
+              onRefresh={handleRefresh}
+              onExportExcel={handleExportExcel}
+              onNavigateToTeam={() => navigate('/team')}
+            />
+          </ProtectedRoute>
         )}
 
         {activeModule === 'team' && (
-          <MyTeamView
-            teamMembers={teamMembers}
-            onRefresh={handleRefresh}
-            onApproveRequest={(requestId, notes) => d365Service.approveTeamRequest(requestId, notes)}
-            onRejectRequest={(requestId, reason) => d365Service.rejectTeamRequest(requestId, reason)}
-            onSubmitLeaveOnBehalf={(memberId, leaveType, startDate, endDate, days, notes) =>
-              d365Service.submitLeaveOnBehalf(memberId, leaveType, startDate, endDate, days, notes)
-            }
-            onSubmitAbsenceOnBehalf={(memberId, duration, date, reason) =>
-              d365Service.submitAbsenceOnBehalf(memberId, duration, date, reason)
-            }
-            onShowToast={(msg) => showToast(msg)}
-          />
+          <ProtectedRoute
+            module="team"
+            title="معلومات فريقي (My team)"
+            requiredRole="MSS_MGR"
+            currentUser={currentUser}
+            onNavigateHome={() => navigate('/dashboard')}
+          >
+            <MyTeamView
+              teamMembers={teamMembers}
+              onRefresh={handleRefresh}
+              onApproveRequest={(requestId, notes) => d365Service.approveTeamRequest(requestId, notes)}
+              onRejectRequest={(requestId, reason) => d365Service.rejectTeamRequest(requestId, reason)}
+              onSubmitLeaveOnBehalf={(memberId, leaveType, startDate, endDate, days, notes) =>
+                d365Service.submitLeaveOnBehalf(memberId, leaveType, startDate, endDate, days, notes)
+              }
+              onSubmitAbsenceOnBehalf={(memberId, duration, date, reason) =>
+                d365Service.submitAbsenceOnBehalf(memberId, duration, date, reason)
+              }
+              onShowToast={(msg) => showToast(msg)}
+            />
+          </ProtectedRoute>
         )}
 
         {activeModule === 'leave-balance' && (
-          <LeaveBalanceView
-            leaveBalances={leaveBalances}
-            onOpenNewLeaveDialog={(type) => handleOpenNewLeave(type)}
-            onRefresh={handleRefresh}
-            onExportExcel={handleExportExcel}
-          />
+          <ProtectedRoute
+            module="leave-balance"
+            title="أرصدة الإجازات"
+            currentUser={currentUser}
+            onNavigateHome={() => navigate('/dashboard')}
+          >
+            <LeaveBalanceView
+              leaveBalances={leaveBalances}
+              onOpenNewLeaveDialog={(type) => handleOpenNewLeave(type)}
+              onRefresh={handleRefresh}
+              onExportExcel={handleExportExcel}
+            />
+          </ProtectedRoute>
         )}
 
         {activeModule === 'penalties' && (
-          <PenaltiesView
-            penalties={penalties}
-            onRefresh={handleRefresh}
-            onExportExcel={handleExportExcel}
-            onGrievanceSuccess={() => {
-              showToast('تم تقديم التظلم بنجاح وإحالته إلى لجنة دراسة التظلمات.');
-            }}
-          />
+          <ProtectedRoute
+            module="penalties"
+            title="الجزاءات والعقوبات"
+            currentUser={currentUser}
+            onNavigateHome={() => navigate('/dashboard')}
+          >
+            <PenaltiesView
+              penalties={penalties}
+              onRefresh={handleRefresh}
+              onExportExcel={handleExportExcel}
+              onGrievanceSuccess={() => {
+                showToast('تم تقديم التظلم بنجاح وإحالته إلى لجنة دراسة التظلمات.');
+              }}
+            />
+          </ProtectedRoute>
         )}
 
         {activeModule === 'training' && (
-          <TrainingCoursesView
-            courses={trainingCourses}
-            onRefresh={handleRefresh}
-            onExportExcel={handleExportExcel}
-            onEvaluationSuccess={() => {
-              showToast('تم اعتماد تقييم الدورة التدريبية بنجاح وتسجيله في سجل الموظف.');
-            }}
-          />
+          <ProtectedRoute
+            module="training"
+            title="الدورات التدريبية"
+            currentUser={currentUser}
+            onNavigateHome={() => navigate('/dashboard')}
+          >
+            <TrainingCoursesView
+              courses={trainingCourses}
+              onRefresh={handleRefresh}
+              onExportExcel={handleExportExcel}
+              onEvaluationSuccess={() => {
+                showToast('تم اعتماد تقييم الدورة التدريبية بنجاح وتسجيله في سجل الموظف.');
+              }}
+            />
+          </ProtectedRoute>
         )}
       </main>
 
@@ -377,7 +577,7 @@ export default function App() {
         isOpen={isLeaveDialogOpen}
         onClose={() => setIsLeaveDialogOpen(false)}
         onSuccess={(id) => {
-          showToast(`تم إرسال طلب الإجازة بنجاح برقم: ${id}`);
+          showToast(`تم حفظ طلب الإجازة في Dynamics برقم: ${id}`);
         }}
         leaveBalances={leaveBalances}
         delegatedEmployees={delegatedEmployees}
@@ -421,6 +621,7 @@ export default function App() {
         isOpen={!!activeQuickAction}
         onClose={() => setActiveQuickAction(null)}
         actionType={activeQuickAction}
+        employee={employee}
         onSuccess={(msg) => showToast(msg)}
       />
 

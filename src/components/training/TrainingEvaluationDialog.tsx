@@ -48,7 +48,7 @@ export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> =
     setRatings((prev) => ({ ...prev, [statementId]: rating }));
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     // Check all rated
     for (const item of STATEMENTS) {
       if (!ratings[item.id]) {
@@ -60,19 +60,30 @@ export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> =
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    setTimeout(() => {
-      d365Service.submitTrainingEvaluation({
+    try {
+      const response = await d365Service.submitTrainingEvaluation({
         courseId: course.courseId,
+        courseTitle: course.courseTitle,
         trainerKnowledge: ratings.trainerCompetence || 'ممتاز',
         trainerEngagement: ratings.trainerCompetence || 'ممتاز',
         courseContent: ratings.relevance || 'ممتاز',
         overallProgramEvaluation: ratings.overallBenefit || 'ممتاز',
         programDuration: ratings.timeSufficiency || 'جيد جداً',
+        positiveFeedback: 'برنامج تدريبي متميز ومفيد جداً لمنظومة العمل الحكومي الرقمي.',
       });
+
       setIsSubmitting(false);
-      onSuccess();
-      onClose();
-    }, 400);
+
+      if (response.isSuccess) {
+        onSuccess();
+        onClose();
+      } else {
+        setErrorMessage(response.error || 'فشل في إرسال تقييم الدورة إلى خادم Dynamics 365.');
+      }
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      setErrorMessage(err instanceof Error ? err.message : 'فشل غير متوقع أثناء إرسال التقييم');
+    }
   };
 
   return (

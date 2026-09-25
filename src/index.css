@@ -20,6 +20,20 @@
     color: var(--d365-text);
     direction: rtl;
   }
+
+  /* Microsoft Dynamics 365 / Fluent UI visible keyboard focus indicator */
+  :focus-visible {
+    outline: 2px solid #0078D4;
+    outline-offset: 1px;
+  }
+
+  /* For dark surfaces (like header bar), use high contrast white focus indicator */
+  [data-surface="dark"] :focus-visible,
+  .bg-\[\#002050\] :focus-visible,
+  .bg-\[\#00173a\] :focus-visible {
+    outline: 2px solid #FFFFFF;
+    outline-offset: 1px;
+  }
 }
 
 /* Custom scrollbar for Dynamics 365 look */
