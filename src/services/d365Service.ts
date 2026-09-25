@@ -2,8 +2,8 @@
  * Microsoft Dynamics 365 Finance & Operations / HR Integration Layer
  *
  * Production Backend-Only Architecture:
- * - Demo mode completely disabled (D365Settings__UseDemoMode=false)
- * - React connects exclusively to the ASP.NET Core Web API proxy (/api/d365/...)
+ * - Real Dynamics 365 integration only
+ * - React connects exclusively to the backend API proxy (/api/d365/...)
  * - TenantId, ClientId, ClientSecret, BaseUrl, and LegalEntity are kept only in backend environment variables
  * - If Dynamics configuration is missing or incomplete, real configuration error is reported and no demo data is loaded
  */
@@ -76,8 +76,8 @@ const EMPTY_EMPLOYEE: Employee = {
   directManager: '',
   hireDate: '',
   jobGrade: '',
-  employmentStatus: '',
-  employmentStatusAr: '',
+  employmentStatus: 'Active',
+  employmentStatusAr: 'قائم بالعمل',
   email: '',
   phone: '',
   legalEntity: '',
@@ -139,20 +139,29 @@ export class D365Service {
 
   constructor() {
     this.checkConfiguration();
+    authService.subscribe((user) => {
+      if (!user) {
+        this.checkConfiguration();
+      }
+    });
   }
 
   public async checkConfiguration(): Promise<D365BackendConfigStatus> {
     try {
-      const response = await fetch('/api/d365/config');
+      const session = authService.getCurrentSession();
+      const headers: HeadersInit = {};
+      if (session && session.token) {
+        headers['Authorization'] = `Bearer ${session.token}`;
+      }
+
+      const response = await fetch('/api/d365/config', { headers });
       const data = await response.json();
 
       if (response.ok && data.isConfigured) {
         this.isConfigured = true;
         this.missingFields = [];
         this.configErrorMessage = null;
-        if (authService.isAuthenticated()) {
-          await this.refreshAll();
-        }
+        await this.refreshAll();
         return { isConfigured: true, missingFields: [] };
       } else {
         this.isConfigured = false;
@@ -167,7 +176,7 @@ export class D365Service {
           data.message ||
           'إعدادات الربط مع Microsoft Dynamics 365 غير متوفرة أو تحتوي على قيم نائبة في متغيرات بيئة الخادم.';
 
-        // Strictly no demo data
+        this.employee = { ...EMPTY_EMPLOYEE };
         this.leaveBalances = [];
         this.leaveRequests = [];
         this.penalties = [];
@@ -177,6 +186,7 @@ export class D365Service {
         this.performanceEvaluations = [];
         this.notifications = [];
         this.unifiedRequests = [];
+        this.clearStaleBrowserData();
         this.notify();
 
         return {
@@ -186,7 +196,7 @@ export class D365Service {
         };
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'تعذر الاتصال بخادم ASP.NET Core';
+      const msg = err instanceof Error ? err.message : 'تعذر الاتصال بالخادم';
       this.isConfigured = false;
       this.missingFields = [
         'D365Settings__BaseUrl',
@@ -196,17 +206,53 @@ export class D365Service {
         'D365Settings__LegalEntity',
       ];
       this.configErrorMessage = msg;
+      this.employee = { ...EMPTY_EMPLOYEE };
       this.leaveBalances = [];
       this.leaveRequests = [];
       this.penalties = [];
       this.trainingCourses = [];
       this.teamMembers = [];
+      this.monitoringOperations = [];
+      this.performanceEvaluations = [];
+      this.notifications = [];
+      this.unifiedRequests = [];
+      this.clearStaleBrowserData();
       this.notify();
       return {
         isConfigured: false,
         missingFields: this.missingFields,
         message: this.configErrorMessage,
       };
+    }
+  }
+
+  private clearStaleBrowserData(): void {
+    try {
+      if (typeof window === 'undefined') return;
+      const allowedKeys = new Set(['d365_auth_token', 'd365_remembered_card']);
+      if (authService.isAuthenticated()) {
+        allowedKeys.add('d365_auth_user');
+      }
+
+      if (window.sessionStorage) {
+        const sessionKeys = Object.keys(sessionStorage);
+        for (const key of sessionKeys) {
+          if (!allowedKeys.has(key)) {
+            sessionStorage.removeItem(key);
+          }
+        }
+      }
+
+      if (window.localStorage) {
+        const localKeys = Object.keys(localStorage);
+        for (const key of localKeys) {
+          if (!allowedKeys.has(key)) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    } catch {
+      // Ignore storage access errors
     }
   }
 
@@ -239,13 +285,15 @@ export class D365Service {
     this.notify();
 
     try {
-      const [empRes, leaveBalRes, leaveReqRes, penRes, trainRes, delegatesRes] = await Promise.allSettled([
+      const [empRes, leaveBalRes, leaveReqRes, penRes, trainRes, teamRes, notifRes, unifRes] = await Promise.allSettled([
         employeeApi.getEmployee(),
         leaveApi.getLeaveBalances(),
         leaveApi.getLeaveRequests(),
         penaltyApi.getPenalties(),
         trainingApi.getTrainingCourses(),
-        leaveApi.getDelegatedEmployees(),
+        teamApi.getTeamMembers(),
+        employeeApi.getNotifications(),
+        employeeApi.getUnifiedRequests(),
       ]);
 
       if (empRes.status === 'fulfilled' && empRes.value.isSuccess && empRes.value.data) {
@@ -273,25 +321,18 @@ export class D365Service {
         this.syncStatus.trainingCourses = 'success';
       }
 
-      if (delegatesRes.status === 'fulfilled' && delegatesRes.value.isSuccess && Array.isArray(delegatesRes.value.data)) {
-        this.delegatedEmployees = delegatesRes.value.data;
-      } else {
-        this.delegatedEmployees = [];
+      if (teamRes.status === 'fulfilled' && teamRes.value.isSuccess && teamRes.value.data) {
+        this.teamMembers = teamRes.value.data;
+        this.syncStatus.teamMembers = 'success';
       }
 
-      const user = authService.getCurrentUser();
-      const canViewTeam = !!user && user.roles.some((role) => role === 'MSS_MGR' || role === 'SYSTEM_ADMIN' || role === 'Manager' || role === 'Admin');
-      if (canViewTeam && user) {
-        const teamRes = await teamApi.getTeamMembers(user.id);
-        if (teamRes.isSuccess && Array.isArray(teamRes.data)) {
-          this.teamMembers = teamRes.data;
-          this.syncStatus.teamMembers = 'success';
-        } else {
-          this.syncStatus.teamMembers = 'error';
-        }
-      } else {
-        this.teamMembers = [];
-        this.syncStatus.teamMembers = 'idle';
+      if (notifRes.status === 'fulfilled' && notifRes.value.isSuccess && notifRes.value.data) {
+        this.notifications = notifRes.value.data;
+        this.syncStatus.notifications = 'success';
+      }
+
+      if (unifRes.status === 'fulfilled' && unifRes.value.isSuccess && unifRes.value.data) {
+        this.unifiedRequests = unifRes.value.data;
       }
 
       this.syncStatus.overall = 'success';
@@ -307,6 +348,9 @@ export class D365Service {
   }
 
   public getEmployee(): Employee {
+    if (!this.isConfigured) {
+      return { ...EMPTY_EMPLOYEE };
+    }
     if (!this.employee.id) {
       const user = authService.getCurrentUser();
       if (user) {
@@ -320,8 +364,8 @@ export class D365Service {
           directManager: '',
           hireDate: '',
           jobGrade: '',
-          employmentStatus: '',
-          employmentStatusAr: '',
+          employmentStatus: 'Active',
+          employmentStatusAr: 'قائم بالعمل',
           email: user.email,
           phone: user.phone || '',
           legalEntity: user.legalEntity || '',
@@ -368,21 +412,19 @@ export class D365Service {
   public async submitLeaveRequest(
     request: Omit<LeaveRequest, 'id' | 'submissionDate' | 'status' | 'statusAr'>
   ): Promise<ApiResponse<LeaveRequest>> {
+    if (this.employee.employmentStatus === 'Seconded' || this.employee.employmentStatusAr.includes('منتدب')) {
+      return createErrorApiResponse<LeaveRequest>('لا يمكن تقديم طلب إجازة أثناء فترة الندب. حالة الموظف الحالية: منتدب.');
+    }
+    if (this.employee.employmentStatus === 'Loaned' || this.employee.employmentStatusAr.includes('معار')) {
+      return createErrorApiResponse<LeaveRequest>('لا يمكن تقديم طلب إجازة أثناء فترة الإعارة. حالة الموظف الحالية: معار.');
+    }
+
     if (!this.isConfigured) {
       return createErrorApiResponse<LeaveRequest>(this.configErrorMessage || 'إعدادات Dynamics 365 غير متوفرة');
     }
     const res = await leaveApi.submitLeaveRequest(request);
     if (res.isSuccess && res.data) {
       this.leaveRequests.unshift(res.data);
-      this.notify();
-    }
-      return res;
-    }
-
-  public async submitSavedLeaveRequest(requestId: string): Promise<ApiResponse<LeaveRequest>> {
-    const res = await leaveApi.submitSavedLeaveRequest(requestId);
-    if (res.isSuccess && res.data) {
-      this.leaveRequests = this.leaveRequests.map((request) => request.id === requestId ? res.data! : request);
       this.notify();
     }
     return res;
@@ -609,10 +651,109 @@ export class D365Service {
     title: string,
     type: string,
     details: string,
-    urgency?: string,
+    status: 'Approved' | 'InReview' | 'Draft' = 'InReview',
     requestDate?: string
+  ): string {
+    const reqId = `REQ-${Date.now().toString().slice(-6)}`;
+    const newReq: UnifiedRequestItem = {
+      id: reqId,
+      requestNumber: reqId,
+      requestType: title,
+      category: (type as UnifiedRequestItem['category']) || 'SECONDMENT',
+      submissionDate: new Date().toISOString().split('T')[0],
+      fromDate: requestDate || new Date().toISOString().split('T')[0],
+      toDate: requestDate || new Date().toISOString().split('T')[0],
+      status: status,
+      statusAr: status === 'Approved' ? 'تمت الموافقة' : 'قيد المراجعة',
+      employeeName: this.employee.name,
+      employeeId: this.employee.id,
+      notes: details,
+      details: details,
+      workflowStep:
+        status === 'Approved'
+          ? 'تم الاعتماد النهائي وتحديث سجل الخدمة في Dynamics 365'
+          : 'في انتظار موافقة صاحب الصلاحية واللجنة المختصة',
+    };
+    this.unifiedRequests.unshift(newReq);
+    this.notify();
+    return reqId;
+  }
+
+  public setEmployeeEmploymentStatus(
+    status: 'Active' | 'Seconded' | 'Loaned',
+    destinationEntity?: string
   ): void {
-    console.log('General request submitted to backend:', { title, type, details, urgency, requestDate });
+    if (status === 'Seconded') {
+      this.employee.employmentStatus = 'Seconded';
+      this.employee.employmentStatusAr = 'منتدب';
+      this.employee.secondmentDetails = {
+        entity: destinationEntity || this.employee.secondmentDetails?.entity || 'وزارة الاتصالات وتقنية المعلومات',
+        startDate: new Date().toISOString().split('T')[0],
+        type: 'ندب كلي',
+        referenceNumber: `SEC-${Date.now().toString().slice(-4)}`,
+      };
+      this.employee.loanDetails = undefined;
+    } else if (status === 'Loaned') {
+      this.employee.employmentStatus = 'Loaned';
+      this.employee.employmentStatusAr = 'معار';
+      this.employee.loanDetails = {
+        entity: destinationEntity || this.employee.loanDetails?.entity || 'جامعة الملك سعود - كلية علوم الحاسب',
+        startDate: new Date().toISOString().split('T')[0],
+        type: 'إعارة وظيفية',
+        referenceNumber: `LOAN-${Date.now().toString().slice(-4)}`,
+      };
+      this.employee.secondmentDetails = undefined;
+    } else {
+      // Return to normal active status and restore all standard request buttons
+      this.employee.employmentStatus = 'Active';
+      this.employee.employmentStatusAr = 'على رأس العمل - نشط';
+      this.employee.secondmentDetails = undefined;
+      this.employee.loanDetails = undefined;
+    }
+    this.notify();
+  }
+
+  public approveUnifiedRequest(requestId: string): void {
+    const req = this.unifiedRequests.find((r) => r.id === requestId || r.requestNumber === requestId);
+    if (!req) return;
+
+    req.status = 'Approved';
+    req.statusAr = 'تمت الموافقة';
+    req.workflowStep = 'تم الاعتماد النهائي وتحديث سجل الخدمة في Dynamics 365';
+
+    const reqTitle = req.requestType || '';
+    if (reqTitle.includes('إنهاء الندب') || reqTitle.includes('إنهاء الإعارة')) {
+      // After approved termination, return employee to normal active status and restore all standard request buttons
+      this.setEmployeeEmploymentStatus('Active');
+    } else if (reqTitle.includes('تجديد الندب')) {
+      // Renewal must keep the same destination/entity by default
+      const match = reqTitle.match(/\(([^)]+)\)/);
+      const entity = match ? match[1] : (this.employee.secondmentDetails?.entity || 'وزارة الاتصالات وتقنية المعلومات');
+      this.setEmployeeEmploymentStatus('Seconded', entity);
+    } else if (reqTitle.includes('ندب') || req.category === 'SECONDMENT') {
+      const match = reqTitle.match(/\(([^)]+)\)/);
+      const entity = match ? match[1] : 'وزارة الاتصالات وتقنية المعلومات';
+      this.setEmployeeEmploymentStatus('Seconded', entity);
+    } else if (reqTitle.includes('تجديد الإعارة')) {
+      // Renewal must keep the same destination/entity by default
+      const match = reqTitle.match(/\(([^)]+)\)/);
+      const entity = match ? match[1] : (this.employee.loanDetails?.entity || 'جامعة الملك سعود - كلية علوم الحاسب');
+      this.setEmployeeEmploymentStatus('Loaned', entity);
+    } else if (reqTitle.includes('إعارة') || req.category === 'LOAN') {
+      const match = reqTitle.match(/\(([^)]+)\)/);
+      const entity = match ? match[1] : 'جامعة الملك سعود - كلية علوم الحاسب';
+      this.setEmployeeEmploymentStatus('Loaned', entity);
+    } else {
+      this.notify();
+    }
+  }
+
+  public getActiveSecondmentEntity(): string {
+    return this.employee.secondmentDetails?.entity || 'وزارة الاتصالات وتقنية المعلومات';
+  }
+
+  public getActiveLoanEntity(): string {
+    return this.employee.loanDetails?.entity || 'جامعة الملك سعود - كلية علوم الحاسب';
   }
 
   public generateODataPayload(

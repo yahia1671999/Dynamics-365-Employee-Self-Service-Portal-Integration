@@ -1,4 +1,5 @@
 import React from 'react';
+import { usePersonalization } from '../../context/PersonalizationContext';
 
 export interface TabItem {
   id: string;
@@ -20,11 +21,13 @@ export const D365Tabs: React.FC<D365TabsProps> = ({
   onTabChange,
   className = '',
 }) => {
+  const { accentConfig } = usePersonalization();
+
   return (
     <div
       role="tablist"
       aria-label="أقسام النظام الرئيسية"
-      className={`bg-white border-b border-[#D1D1D1] px-4 flex items-center gap-1 overflow-x-auto ${className}`}
+      className={`bg-[#F8F9FA] px-3 sm:px-6 py-2 flex items-center gap-1.5 sm:gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] ${className}`}
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
@@ -36,18 +39,54 @@ export const D365Tabs: React.FC<D365TabsProps> = ({
             tabIndex={isActive ? 0 : -1}
             type="button"
             onClick={() => onTabChange(tab.id)}
-            className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px outline-none focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:outline-none ${
+            style={
               isActive
-                ? 'border-[#0078D4] text-[#0078D4] font-semibold bg-[#FAF9F8]'
-                : 'border-transparent text-[#605E5C] hover:text-[#323130] hover:bg-[#F3F2F1]'
+                ? {
+                    color: accentConfig.primary,
+                    borderColor: accentConfig.lightBorder,
+                    backgroundColor: '#FFFFFF',
+                  }
+                : undefined
+            }
+            className={`group relative flex items-center gap-2 px-3.5 sm:px-4 py-2 text-xs rounded-[4px] whitespace-nowrap shrink-0 transition-all duration-150 outline-none cursor-pointer border select-none ${
+              isActive
+                ? 'font-bold shadow-[0_2px_4px_rgba(0,120,212,0.08),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-[#0078D4]/15'
+                : 'border-transparent text-[#605E5C] hover:text-[#201F1E] hover:bg-[#EDEBE9]/70 hover:border-[#D2D0CE]/60'
             }`}
           >
-            {tab.icon && <span aria-hidden="true">{tab.icon}</span>}
-            <span>{tab.label}</span>
+            {/* Active bottom accent bar */}
+            {isActive && (
+              <span
+                style={{ backgroundColor: accentConfig.primary }}
+                className="absolute bottom-0 left-2.5 right-2.5 h-[2.5px] rounded-t-sm"
+                aria-hidden="true"
+              />
+            )}
+
+            {tab.icon && (
+              <span
+                aria-hidden="true"
+                className="shrink-0 transition-colors flex items-center justify-center"
+                style={{ color: isActive ? accentConfig.primary : undefined }}
+              >
+                {tab.icon}
+              </span>
+            )}
+            <span className="truncate tracking-tight font-medium group-[aria-selected=true]:font-bold">
+              {tab.label}
+            </span>
             {tab.count !== undefined && (
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-none font-bold ${
-                  isActive ? 'bg-[#0078D4] text-white' : 'bg-[#EDEBE9] text-[#605E5C]'
+                style={
+                  isActive
+                    ? {
+                        backgroundColor: accentConfig.primary,
+                        color: '#FFFFFF',
+                      }
+                    : undefined
+                }
+                className={`text-[10px] px-1.5 py-0.5 rounded-[3px] font-bold font-mono shrink-0 transition-colors tabular-nums ${
+                  isActive ? '' : 'bg-[#EDEBE9] text-[#605E5C] group-hover:bg-[#E1DFDD]'
                 }`}
               >
                 {tab.count}

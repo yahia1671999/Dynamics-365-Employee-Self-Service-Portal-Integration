@@ -3,7 +3,7 @@
  * Handles Leave Balances, Requests, Transactions, and Substitute Delegates
  * Maps to D365 OData:
  * - /data/LeaveAndAbsenceBankTransactions
- * - /data/EssLeaveRequestHeaders and /data/EssLeaveRequestDetails
+ * - /data/LeaveAndAbsenceRequests
  * - /data/LeaveAndAbsencePlans
  */
 
@@ -27,33 +27,7 @@ export class LeaveApi {
   ): Promise<ApiResponse<LeaveBalance[]>> {
     const id = personnelNumber || authService.getCurrentUser()?.id || '';
     const query = id ? `?workerId=${encodeURIComponent(id)}` : '';
-    type BackendBalance = Partial<LeaveBalance> & {
-      totalEntitlement?: number;
-      transferredFromPreviousYear?: number;
-      usedDays?: number;
-      remainingBalance?: number;
-      pendingApprovalDays?: number;
-    };
-    const response = await apiClient.get<BackendBalance[]>(`/leave-balances${query}`);
-    if (!response.isSuccess || !Array.isArray(response.data)) {
-      return response as ApiResponse<LeaveBalance[]>;
-    }
-    return {
-      ...response,
-      data: response.data.map((balance) => ({
-        id: balance.id || '',
-        leaveTypeCode: balance.leaveTypeCode || 'ANNUAL',
-        leaveTypeTitle: balance.leaveTypeTitle || '',
-        unit: balance.unit || '',
-        currentBalance: balance.remainingBalance ?? balance.currentBalance ?? 0,
-        allocatedBalance: (balance.totalEntitlement ?? balance.allocatedBalance ?? 0) + (balance.transferredFromPreviousYear ?? 0),
-        consumedBalance: balance.usedDays ?? balance.consumedBalance ?? 0,
-        pendingBalance: balance.pendingApprovalDays ?? balance.pendingBalance ?? 0,
-        accrualRate: balance.accrualRate || '',
-        asOfDate: balance.asOfDate || '',
-        accrualPlanId: balance.accrualPlanId || '',
-      })),
-    };
+    return apiClient.get<LeaveBalance[]>(`/leave-balances${query}`);
   }
 
   /**
@@ -96,16 +70,12 @@ export class LeaveApi {
 
   /**
    * Submits a new leave request to Dynamics 365 workflow
-   * Backend creates an EssLeaveRequestHeader and dated details, then calls submit.
+   * D365 OData: POST /data/LeaveAndAbsenceRequests
    */
   public async submitLeaveRequest(
     requestData: Omit<LeaveRequest, 'id' | 'submissionDate' | 'status' | 'statusAr'>
   ): Promise<ApiResponse<LeaveRequest>> {
     return apiClient.post<LeaveRequest>('/leave-requests', requestData);
-  }
-
-  public async submitSavedLeaveRequest(requestId: string): Promise<ApiResponse<LeaveRequest>> {
-    return apiClient.post<LeaveRequest>(`/leave-requests/${encodeURIComponent(requestId)}/submit`);
   }
 
   /**

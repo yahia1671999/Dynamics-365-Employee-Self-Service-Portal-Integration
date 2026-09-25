@@ -53,18 +53,14 @@ public class ExceptionHandlingMiddleware
             return;
         }
 
-        context.Response.StatusCode = exception is ArgumentException
-            ? (int)HttpStatusCode.BadRequest
-            : (int)HttpStatusCode.InternalServerError;
+        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
         var errorResponse = new
         {
             error = new
             {
                 code = "INTERNAL_SERVER_ERROR",
-                message = exception is ArgumentException || exception is InvalidOperationException
-                    && exception.Message.StartsWith("Dynamics created draft ", StringComparison.Ordinal)
-                    ? exception.Message : "حدث خطأ في خادم Dynamics 365.",
+                message = "حدث خطأ في خادم Dynamics 365.",
                 details = exception.Message
             },
             timestamp = DateTime.UtcNow.ToString("O"),

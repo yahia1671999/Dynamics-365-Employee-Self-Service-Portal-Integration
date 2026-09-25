@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, Send, X } from 'lucide-react';
+import { AlertCircle, Send } from 'lucide-react';
 import { D365Dialog } from '../common/D365Dialog';
-import { TrainingCourse, EvaluationRating } from '../../types/d365.types';
+import { TrainingCourse } from '../../types/d365.types';
 import { d365Service } from '../../services/d365Service';
+import { usePersonalization } from '../../context/PersonalizationContext';
+import { getPopupTranslations, formatString } from '../../i18n/popupTranslations';
 
 interface TrainingEvaluationDialogProps {
   isOpen: boolean;
@@ -11,48 +13,51 @@ interface TrainingEvaluationDialogProps {
   onSuccess: () => void;
 }
 
-const RATING_COLUMNS: EvaluationRating[] = ['ممتاز', 'جيد جداً', 'جيد', 'متوسط', 'ضعيف'];
-
-interface CriterionItem {
-  id: string;
-  statement: string;
-}
-
-const STATEMENTS: CriterionItem[] = [
-  { id: 'relevance', statement: 'مدي ملاءمة محتوي البرنامج لاحتياجاتك التدريبية' },
-  { id: 'trainerCompetence', statement: 'مدي كفاءة المدرب في توصيل المادة التدريبية' },
-  { id: 'timeSufficiency', statement: 'مدي كفاية الوقت المخصص للبرنامج' },
-  { id: 'organization', statement: 'التنظيم العام والتجهيزات' },
-  { id: 'overallBenefit', statement: 'الاستفادة الكلية من الدورة التدريبية' },
-];
-
 export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> = ({
   isOpen,
   onClose,
   course,
   onSuccess,
 }) => {
-  const [ratings, setRatings] = useState<Record<string, EvaluationRating>>({
-    relevance: 'ممتاز',
-    trainerCompetence: 'ممتاز',
-    timeSufficiency: 'جيد جداً',
-    organization: 'ممتاز',
-    overallBenefit: 'ممتاز',
+  const { language } = usePersonalization();
+  const pt = getPopupTranslations(language);
+
+  const ratingColumns = [
+    pt.training.ratingExcellent,
+    pt.training.ratingVeryGood,
+    pt.training.ratingGood,
+    pt.training.ratingFair,
+    pt.training.ratingPoor,
+  ];
+
+  const statements = [
+    { id: 'relevance', statement: pt.trainingEval.critRelevance },
+    { id: 'trainerCompetence', statement: pt.trainingEval.critTrainerCompetence },
+    { id: 'timeSufficiency', statement: pt.trainingEval.critTimeSufficiency },
+    { id: 'organization', statement: pt.trainingEval.critOrganization },
+    { id: 'overallBenefit', statement: pt.trainingEval.critOverallBenefit },
+  ];
+
+  const [ratings, setRatings] = useState<Record<string, string>>({
+    relevance: pt.training.ratingExcellent,
+    trainerCompetence: pt.training.ratingExcellent,
+    timeSufficiency: pt.training.ratingVeryGood,
+    organization: pt.training.ratingExcellent,
+    overallBenefit: pt.training.ratingExcellent,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!course) return null;
 
-  const handleSelect = (statementId: string, rating: EvaluationRating) => {
+  const handleSelect = (statementId: string, rating: string) => {
     setRatings((prev) => ({ ...prev, [statementId]: rating }));
   };
 
   const handleSend = async () => {
-    // Check all rated
-    for (const item of STATEMENTS) {
+    for (const item of statements) {
       if (!ratings[item.id]) {
-        setErrorMessage(`يرجى تحديد التقييم للبند: ${item.statement}`);
+        setErrorMessage(formatString(pt.trainingEval.validationIncomplete, { statement: item.statement }));
         return;
       }
     }
@@ -64,12 +69,14 @@ export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> =
       const response = await d365Service.submitTrainingEvaluation({
         courseId: course.courseId,
         courseTitle: course.courseTitle,
-        trainerKnowledge: ratings.trainerCompetence || 'ممتاز',
-        trainerEngagement: ratings.trainerCompetence || 'ممتاز',
-        courseContent: ratings.relevance || 'ممتاز',
-        overallProgramEvaluation: ratings.overallBenefit || 'ممتاز',
-        programDuration: ratings.timeSufficiency || 'جيد جداً',
-        positiveFeedback: 'برنامج تدريبي متميز ومفيد جداً لمنظومة العمل الحكومي الرقمي.',
+        trainerKnowledge: ratings.trainerCompetence || pt.training.ratingExcellent,
+        trainerEngagement: ratings.trainerCompetence || pt.training.ratingExcellent,
+        courseContent: ratings.relevance || pt.training.ratingExcellent,
+        overallProgramEvaluation: ratings.overallBenefit || pt.training.ratingExcellent,
+        programDuration: ratings.timeSufficiency || pt.training.ratingVeryGood,
+        positiveFeedback: language === 'en'
+          ? 'Distinguished training program that effectively enhances public sector digital workflow.'
+          : 'برنامج تدريبي متميز ومفيد جداً لمنظومة العمل الحكومي الرقمي.',
       });
 
       setIsSubmitting(false);
@@ -78,11 +85,11 @@ export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> =
         onSuccess();
         onClose();
       } else {
-        setErrorMessage(response.error || 'فشل في إرسال تقييم الدورة إلى خادم Dynamics 365.');
+        setErrorMessage(response.error || pt.trainingEval.errorFailedSubmit);
       }
     } catch (err: unknown) {
       setIsSubmitting(false);
-      setErrorMessage(err instanceof Error ? err.message : 'فشل غير متوقع أثناء إرسال التقييم');
+      setErrorMessage(err instanceof Error ? err.message : pt.trainingEval.errorUnexpected);
     }
   };
 
@@ -90,8 +97,8 @@ export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> =
     <D365Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title={`تقييم دورة: ${course.courseTitle}`}
-      subtitle={`معرف الدورة: ${course.courseId} - Microsoft Dynamics 365 Training Evaluation`}
+      title={formatString(pt.trainingEval.dialogTitle, { courseTitle: course.courseTitle })}
+      subtitle={formatString(pt.trainingEval.dialogSubtitle, { courseId: course.courseId })}
       maxWidth="3xl"
     >
       <div className="space-y-4">
@@ -103,35 +110,35 @@ export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> =
         )}
 
         <div className="text-xs text-[#605E5C]">
-          يرجى تقييم بنود البرنامج التدريبي باختيار التقدير المناسب لكل بيان من البيانات التالية:
+          {pt.trainingEval.introInstruction}
         </div>
 
-        {/* Matrix Table: Matching Screenshot 6 */}
+        {/* Matrix Table */}
         <div className="bg-white border border-[#D1D1D1] overflow-x-auto">
-          <table className="w-full text-xs text-right border-collapse">
+          <table className="w-full min-w-[520px] text-xs text-start border-collapse">
             <thead>
               <tr className="bg-[#F3F2F1] border-b border-[#D1D1D1] text-[#323130] font-semibold">
-                <th className="p-3 border-l border-[#D1D1D1]">البيان</th>
-                {RATING_COLUMNS.map((col) => (
-                  <th key={col} className="p-3 border-l border-[#D1D1D1] text-center w-24">
+                <th className="p-3 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.trainingEval.colStatement}</th>
+                {ratingColumns.map((col) => (
+                  <th key={col} className="p-3 rtl:border-l ltr:border-r border-[#D1D1D1] text-center w-24">
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {STATEMENTS.map((item, index) => (
+              {statements.map((item, index) => (
                 <tr
                   key={item.id}
                   className={`border-b border-[#EDEBE9] ${
                     index % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'
                   } hover:bg-[#F3F2F1]`}
                 >
-                  <td className="p-3 border-l border-[#EDEBE9] text-[#323130] font-medium">
+                  <td className="p-3 rtl:border-l ltr:border-r border-[#EDEBE9] text-[#323130] font-medium">
                     {item.statement}
                   </td>
-                  {RATING_COLUMNS.map((col) => (
-                    <td key={col} className="p-3 border-l border-[#EDEBE9] text-center">
+                  {ratingColumns.map((col) => (
+                    <td key={col} className="p-3 rtl:border-l ltr:border-r border-[#EDEBE9] text-center">
                       <input
                         type="radio"
                         name={`rating-${item.id}`}
@@ -147,24 +154,24 @@ export const TrainingEvaluationDialog: React.FC<TrainingEvaluationDialogProps> =
           </table>
         </div>
 
-        {/* Bottom Buttons: Matching Screenshot 6: [إرسال] [إلغاء] */}
-        <div className="pt-2 flex items-center justify-start gap-2 border-t border-[#EDEBE9]">
+        {/* Bottom Buttons: [Submit] [Cancel] */}
+        <div className="pt-2 flex flex-wrap items-center justify-start gap-2 border-t border-[#EDEBE9]">
           <button
             type="button"
             onClick={handleSend}
             disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-1.5 px-4 py-1.5 min-h-[32px] bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50 cursor-pointer"
           >
-            <Send className="w-3.5 h-3.5" />
-            <span>{isSubmitting ? 'جاري الإرسال...' : 'إرسال'}</span>
+            <Send className="w-3.5 h-3.5 rtl:rotate-180" />
+            <span>{isSubmitting ? pt.common.sending : pt.common.submit}</span>
           </button>
 
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center gap-1 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors"
+            className="flex items-center justify-center gap-1 px-4 py-1.5 min-h-[32px] bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors cursor-pointer"
           >
-            <span>إلغاء</span>
+            <span>{pt.common.cancel}</span>
           </button>
         </div>
       </div>

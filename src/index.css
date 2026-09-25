@@ -14,23 +14,72 @@
     --d365-selected: #EDEBE9;
   }
 
+  :root.dark,
+  body.dark {
+    --d365-bg: #1B1A19;
+    --d365-surface: #292827;
+    --d365-border: #3B3A39;
+    --d365-text: #F3F2F1;
+    --d365-text-secondary: #C8C6C4;
+    --d365-hover: #333230;
+    --d365-selected: #3B3A39;
+  }
+
   body {
     font-family: "Segoe UI", "Segoe UI Arabic", "Cairo", Tahoma, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     background-color: var(--d365-bg);
     color: var(--d365-text);
-    direction: rtl;
+  }
+
+  body.dark {
+    background-color: #1B1A19 !important;
+    color: #F3F2F1 !important;
+  }
+
+  body.dark .bg-white {
+    background-color: #292827 !important;
+    color: #F3F2F1 !important;
+  }
+
+  body.dark .bg-\[\#FAF9F8\],
+  body.dark .bg-\[\#FAFAFA\],
+  body.dark .bg-\[\#F8F9FA\],
+  body.dark .bg-\[\#F9F9F9\],
+  body.dark .bg-\[\#F5F5F5\] {
+    background-color: #201F1E !important;
+    color: #F3F2F1 !important;
+  }
+
+  body.dark .bg-\[\#F3F2F1\] {
+    background-color: #2D2C2C !important;
+    color: #F3F2F1 !important;
+  }
+
+  body.dark .border-\[\#D1D1D1\],
+  body.dark .border-\[\#D2D0CE\],
+  body.dark .border-\[\#EDEBE9\],
+  body.dark .border-\[\#E1DFDD\] {
+    border-color: #3B3A39 !important;
+  }
+
+  body.dark .text-\[\#323130\],
+  body.dark .text-\[\#201F1E\] {
+    color: #F3F2F1 !important;
+  }
+
+  body.dark .text-\[\#605E5C\] {
+    color: #A19F9D !important;
   }
 
   /* Microsoft Dynamics 365 / Fluent UI visible keyboard focus indicator */
   :focus-visible {
-    outline: 2px solid #0078D4;
+    outline: 2px solid var(--d365-primary, #0078D4);
     outline-offset: 1px;
   }
 
-  /* For dark surfaces (like header bar), use high contrast white focus indicator */
-  [data-surface="dark"] :focus-visible,
-  .bg-\[\#002050\] :focus-visible,
-  .bg-\[\#00173a\] :focus-visible {
+  /* For header bar and dark surfaces, use high contrast white focus indicator */
+  header :focus-visible,
+  [data-surface="dark"] :focus-visible {
     outline: 2px solid #FFFFFF;
     outline-offset: 1px;
   }

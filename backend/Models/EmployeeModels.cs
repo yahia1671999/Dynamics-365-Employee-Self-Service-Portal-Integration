@@ -58,9 +58,6 @@ public class EmployeeDto
     [JsonPropertyName("jobGrade")]
     public string JobGrade { get; set; } = string.Empty;
 
-    [JsonPropertyName("jobGroup")]
-    public string JobGroup { get; set; } = string.Empty;
-
     [JsonPropertyName("employmentStatus")]
     public string EmploymentStatus { get; set; } = "Active";
 
@@ -87,68 +84,54 @@ public class EmployeeDto
 
     [JsonPropertyName("personalDetails")]
     public PersonalDetailsDto? PersonalDetails { get; set; }
+
+    [JsonPropertyName("secondmentDetails")]
+    public SecondmentDetailsDto? SecondmentDetails { get; set; }
+
+    [JsonPropertyName("loanDetails")]
+    public LoanDetailsDto? LoanDetails { get; set; }
 }
 
-// Internal representation of the public D365 F&O employee data entity.
-// Keep this separate from EmployeeDto because OData field names are part of
-// the F&O integration contract, while EmployeeDto is the ESS API contract.
-public class D365EmployeeRecord
+public class SecondmentDetailsDto
 {
-    [JsonPropertyName("PersonnelNumber")]
-    public string PersonnelNumber { get; set; } = string.Empty;
+    [JsonPropertyName("entity")]
+    public string Entity { get; set; } = string.Empty;
 
-    [JsonPropertyName("PartyNumber")]
-    public string PartyNumber { get; set; } = string.Empty;
+    [JsonPropertyName("startDate")]
+    public string StartDate { get; set; } = string.Empty;
 
-    [JsonPropertyName("Name")]
-    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("endDate")]
+    public string? EndDate { get; set; }
 
-    public string EmploymentStartDate { get; set; } = string.Empty;
+    [JsonPropertyName("type")]
+    public string? Type { get; set; } = "ندب كلي";
 
-    public string MaritalStatus { get; set; } = string.Empty;
+    [JsonPropertyName("referenceNumber")]
+    public string? ReferenceNumber { get; set; }
 
-    public int NumberOfDependents { get; set; }
-
-    public string IsDisabled { get; set; } = string.Empty;
-
-    public string DisabledVerificationDate { get; set; } = string.Empty;
-
-    public string Education { get; set; } = string.Empty;
-
-    public string PensionStart { get; set; } = string.Empty;
-
-    [JsonPropertyName("JobTitle")]
-    public string JobTitle { get; set; } = string.Empty;
-
-    [JsonPropertyName("Department")]
-    public string Department { get; set; } = string.Empty;
-
-    [JsonPropertyName("Division")]
-    public string Division { get; set; } = string.Empty;
-
-    [JsonPropertyName("PrimaryContactEmail")]
-    public string PrimaryContactEmail { get; set; } = string.Empty;
-
-    [JsonPropertyName("PrimaryContactPhone")]
-    public string PrimaryContactPhone { get; set; } = string.Empty;
-
-    [JsonPropertyName("EmploymentLegalEntityId")]
-    public string LegalEntityId { get; set; } = string.Empty;
-
-    [JsonPropertyName("EmploymentStatus")]
-    public string EmploymentStatus { get; set; } = string.Empty;
-
-    [JsonPropertyName("AvatarUrl")]
-    public string? AvatarUrl { get; set; }
+    [JsonPropertyName("isRenewal")]
+    public bool IsRenewal { get; set; } = false;
 }
 
-public class D365PersonIdentificationRecord
+public class LoanDetailsDto
 {
-    [JsonPropertyName("IdentificationNumber")]
-    public string IdentificationNumber { get; set; } = string.Empty;
+    [JsonPropertyName("entity")]
+    public string Entity { get; set; } = string.Empty;
 
-    [JsonPropertyName("PartyNumber")]
-    public string PartyNumber { get; set; } = string.Empty;
+    [JsonPropertyName("startDate")]
+    public string StartDate { get; set; } = string.Empty;
+
+    [JsonPropertyName("endDate")]
+    public string? EndDate { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; } = "إعارة وظيفية";
+
+    [JsonPropertyName("referenceNumber")]
+    public string? ReferenceNumber { get; set; }
+
+    [JsonPropertyName("isRenewal")]
+    public bool IsRenewal { get; set; } = false;
 }
 
 public class PerformanceEvaluationDto
@@ -201,3 +184,25 @@ public class D365NotificationDto
     [JsonPropertyName("type")]
     public string Type { get; set; } = "info";
 }
+
+public class EmploymentStatusUpdateDto
+{
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "Active";
+
+    [JsonPropertyName("entity")]
+    public string? Entity { get; set; }
+}
+
+public class ApproveRequestInputDto
+{
+    [JsonPropertyName("requestType")]
+    public string? RequestType { get; set; }
+
+    [JsonPropertyName("entity")]
+    public string? Entity { get; set; }
+
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+

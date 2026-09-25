@@ -116,10 +116,10 @@ export const TrainingCoursesView: React.FC<TrainingCoursesViewProps> = ({
       />
 
       {/* Page Title & KPI Bar */}
-      <div className="bg-white border border-[#D1D1D1] p-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white border border-[#D2D0CE] p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
         <div>
-          <h1 className="text-base font-bold text-[#323130] flex items-center gap-2">
-            <span className="w-2 h-4 bg-[#0078D4]"></span>
+          <h1 className="text-base font-bold text-[#201F1E] flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-[#0078D4]"></span>
             <span>الدورات والبرامج التدريبية (HcmCourseAttendance & Skills)</span>
           </h1>
           <p className="text-[11px] text-[#605E5C] mt-0.5">
@@ -128,14 +128,14 @@ export const TrainingCoursesView: React.FC<TrainingCoursesViewProps> = ({
         </div>
 
         {/* Counter Pills */}
-        <div className="flex items-center gap-2">
-          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D1D1D1] text-xs">
-            <span className="text-[#605E5C]">الدورات المنجزة: </span>
-            <strong className="text-[#107C41] font-sans">{completedCoursesCount}</strong>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D2D0CE] text-xs shadow-2xs flex items-center gap-1.5">
+            <span className="text-[#605E5C] font-medium">الدورات المنجزة:</span>
+            <strong className="text-[#107C41] font-mono font-extrabold tabular-nums">{completedCoursesCount}</strong>
           </div>
-          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D1D1D1] text-xs">
-            <span className="text-[#605E5C]">تقييمات معلقة: </span>
-            <strong className="text-[#D83B01] font-sans">{pendingEvalCount}</strong>
+          <div className="px-3 py-1.5 bg-[#FAF9F8] border border-[#D2D0CE] text-xs shadow-2xs flex items-center gap-1.5">
+            <span className="text-[#605E5C] font-medium">تقييمات معلقة:</span>
+            <strong className="text-[#D83B01] font-mono font-extrabold tabular-nums">{pendingEvalCount}</strong>
           </div>
         </div>
       </div>
@@ -152,7 +152,7 @@ export const TrainingCoursesView: React.FC<TrainingCoursesViewProps> = ({
             {row.generalEvaluationStatus === 'PendingEvaluation' ? (
               <button
                 onClick={() => setSelectedCourseForEval(row)}
-                className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs hover:shadow-xs cursor-pointer focus-visible:outline-none"
                 title="إجراء تقييم لهذه الدورة"
               >
                 <Award className="w-3 h-3" />
@@ -161,7 +161,7 @@ export const TrainingCoursesView: React.FC<TrainingCoursesViewProps> = ({
             ) : (
               <button
                 onClick={() => setSelectedCourseForEval(row)}
-                className="px-2 py-0.5 bg-white hover:bg-[#F3F2F1] text-[#0078D4] border border-[#0078D4] text-[11px] font-medium transition-colors"
+                className="px-2.5 py-1 bg-white hover:bg-[#FAF9F8] text-[#0078D4] border border-[#0078D4] text-[11px] font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer focus-visible:outline-none"
                 title="عرض وتعديل التقييم السابق"
               >
                 عرض التقييم

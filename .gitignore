@@ -6,10 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-*.vsidx
-.vs/
-backend/bin/
-backend/obj/
-backend/out-temp/
-backend/appsettings.Development.json
-backend/*.csproj.user

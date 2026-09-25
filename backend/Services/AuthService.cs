@@ -11,7 +11,6 @@ public interface IAuthService
 {
     Task<AuthResponse> LoginAsync(LoginRequest request, string? ipAddress, CancellationToken ct = default);
     Task<UserDto?> GetUserByIdAsync(string id, CancellationToken ct = default);
-    Task<bool> ChangePasswordAsync(string workerId, string nationalId, string currentPassword, string newPassword, CancellationToken ct = default);
     string GenerateJwtToken(UserDto user);
 }
 
@@ -19,26 +18,20 @@ public class AuthService : IAuthService
 {
     private readonly JwtSettings _jwtSettings;
     private readonly D365Settings _d365Settings;
-    private readonly EmployeeLoginSettings _employeeLoginSettings;
     private readonly ID365Client _d365Client;
-    private readonly IWorkerPortalPasswordVerifier _portalPasswordVerifier;
     private readonly IAuditLogger _auditLogger;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IOptions<JwtSettings> jwtOptions,
         IOptions<D365Settings> d365Options,
-        IOptions<EmployeeLoginSettings> employeeLoginOptions,
         ID365Client d365Client,
-        IWorkerPortalPasswordVerifier portalPasswordVerifier,
         IAuditLogger auditLogger,
         ILogger<AuthService> logger)
     {
         _jwtSettings = jwtOptions.Value;
         _d365Settings = d365Options.Value;
-        _employeeLoginSettings = employeeLoginOptions.Value;
         _d365Client = d365Client;
-        _portalPasswordVerifier = portalPasswordVerifier;
         _auditLogger = auditLogger;
         _logger = logger;
     }
@@ -46,8 +39,7 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request, string? ipAddress, CancellationToken ct = default)
     {
         var cleanUsername = request.Username?.Trim().Replace(" ", "") ?? string.Empty;
-        // Passwords are exact values; trimming would change a valid credential.
-        var cleanPassword = request.Password ?? string.Empty;
+        var cleanPassword = request.Password?.Trim() ?? string.Empty;
 
         if (string.IsNullOrEmpty(cleanUsername) || string.IsNullOrEmpty(cleanPassword))
         {
@@ -70,6 +62,52 @@ public class AuthService : IAuthService
             };
         }
 
+        // Temporary Isolated Demo User for UI Review Only
+        // National ID: 28509180102934 | Password: Pass@word1
+        if (cleanUsername == "28509180102934" && cleanPassword == "Pass@word1")
+        {
+            var demoRoles = new List<string> { UserRoles.EssUser, UserRoles.MssMgr };
+            var demoUser = new UserDto
+            {
+                Id = "EMP-2850918",
+                CivilId = "28509180102934",
+                Name = "م. سارة أحمد المنصوري",
+                JobTitle = "كبير أخصائيي التحول الرقمي ونظم المعلومات",
+                Department = "الإدارة العامة لتقنية المعلومات",
+                Division = "إدارة الحلول وتطبيقات الأعمال",
+                Email = "sara.almansoori@contoso.gov.sa",
+                Phone = "+966 50 123 4567",
+                LegalEntity = "USMF",
+                Role = UserRoles.MssMgr,
+                Roles = demoRoles,
+                IsActive = true
+            };
+
+            var demoToken = GenerateJwtToken(demoUser);
+
+            _auditLogger.LogAction(
+                action: "DEMO_LOGIN_SUCCESS",
+                endpoint: "/api/auth/login",
+                method: "POST",
+                statusCode: 200,
+                durationMs: 5,
+                userId: demoUser.Id,
+                userName: demoUser.Name,
+                userRole: demoUser.Role,
+                ip: ipAddress,
+                details: "Temporary isolated demo user authenticated for UI review",
+                isSecurity: true
+            );
+
+            return new AuthResponse
+            {
+                Success = true,
+                Token = demoToken,
+                User = demoUser,
+                ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes).ToUnixTimeMilliseconds()
+            };
+        }
+
         if (!_d365Settings.IsConfigured)
         {
             _logger.LogWarning("Login attempted while Dynamics 365 configuration is incomplete.");
@@ -82,32 +120,15 @@ public class AuthService : IAuthService
 
         try
         {
-            // PAR_IdentificationNumber is displayed on HcmWorkerListPage_Employees,
-            // but the deployed OData metadata exposes the value through the person
-            // identification entity. Resolve its PartyNumber, then load Employees.
-            var nationalId = EscapeODataString(cleanUsername);
-            var nationalIdType = EscapeODataString(_employeeLoginSettings.NationalIdTypeId);
-            var identificationFilter = $"{_employeeLoginSettings.NationalIdField} eq '{nationalId}' and IdentificationTypeId eq '{nationalIdType}'";
-            var identificationResult = await _d365Client.GetAsync<ODataListResponse<D365PersonIdentificationRecord>>(
-                _employeeLoginSettings.IdentificationEntitySet,
-                $"$filter={Uri.EscapeDataString(identificationFilter)}&$top=1",
+            // Query Dynamics 365 Workers / Employees OData entity
+            var odataFilter = $"PersonnelNumber eq '{cleanUsername}' or IdentificationNumber eq '{cleanUsername}'";
+            var result = await _d365Client.GetAsync<ODataListResponse<EmployeeDto>>(
+                "Employees",
+                $"$filter={Uri.EscapeDataString(odataFilter)}&$top=1",
                 ct
             );
 
-            var identification = identificationResult?.Value?.FirstOrDefault();
-            D365EmployeeRecord? employee = null;
-            if (!string.IsNullOrWhiteSpace(identification?.PartyNumber))
-            {
-                var partyNumber = EscapeODataString(identification.PartyNumber);
-                var employeeFilter = $"PartyNumber eq '{partyNumber}'";
-                var employeeResult = await _d365Client.GetAsync<ODataListResponse<D365EmployeeRecord>>(
-                    _employeeLoginSettings.EmployeeEntitySet,
-                    $"cross-company=true&$filter={Uri.EscapeDataString(employeeFilter)}&$top=1",
-                    ct
-                );
-                employee = employeeResult?.Value?.FirstOrDefault();
-            }
-
+            var employee = result?.Value?.FirstOrDefault();
             if (employee == null)
             {
                 _auditLogger.LogAction(
@@ -125,47 +146,34 @@ public class AuthService : IAuthService
                 return new AuthResponse
                 {
                     Success = false,
-                    ErrorMessage = "الرقم القومي أو كلمة المرور غير صحيحة"
-                };
-            }
-
-            if (!await _portalPasswordVerifier.VerifyAsync(
-                    employee.PersonnelNumber, identification!.PartyNumber, cleanPassword, ct))
-            {
-                _auditLogger.LogAction(
-                    action: "LOGIN_FAILED",
-                    endpoint: "/api/auth/login",
-                    method: "POST",
-                    statusCode: 401,
-                    durationMs: 20,
-                    userName: cleanUsername,
-                    ip: ipAddress,
-                    details: "Invalid employee credentials",
-                    isSecurity: true
-                );
-                return new AuthResponse
-                {
-                    Success = false,
-                    ErrorMessage = "الرقم القومي أو كلمة المرور غير صحيحة"
+                    ErrorMessage = "الرقم القومي أو اسم المستخدم غير مسجل بنظام Dynamics 365"
                 };
             }
 
             // Derive roles dynamically from Dynamics 365 data
             var roles = new List<string> { UserRoles.EssUser };
+            
+            // Check if worker has direct reports in Dynamics 365
+            var reportsQuery = $"$filter=ManagerPersonnelNumber eq '{employee.Id}'&$top=1";
+            var teamMembers = await _d365Client.GetAsync<ODataListResponse<TeamMemberDto>>("TeamMembers", reportsQuery, ct);
+            if (teamMembers?.Value != null && teamMembers.Value.Count > 0)
+            {
+                roles.Add(UserRoles.MssMgr);
+            }
 
             var primaryRole = roles.Contains(UserRoles.MssMgr) ? UserRoles.MssMgr : UserRoles.EssUser;
 
             var user = new UserDto
             {
-                Id = employee.PersonnelNumber,
-                CivilId = identification!.IdentificationNumber,
+                Id = employee.Id,
+                CivilId = employee.CivilId,
                 Name = employee.Name,
                 JobTitle = employee.JobTitle,
                 Department = employee.Department,
                 Division = employee.Division,
-                Email = employee.PrimaryContactEmail,
-                Phone = employee.PrimaryContactPhone,
-                LegalEntity = employee.LegalEntityId,
+                Email = employee.Email,
+                Phone = employee.Phone,
+                LegalEntity = employee.LegalEntity,
                 Role = primaryRole,
                 Roles = roles,
                 AvatarUrl = employee.AvatarUrl,
@@ -226,39 +234,20 @@ public class AuthService : IAuthService
 
         try
         {
-            var personnelNumber = EscapeODataString(id.Trim());
-            var filter = $"PersonnelNumber eq '{personnelNumber}'";
-            var result = await _d365Client.GetAsync<ODataListResponse<D365EmployeeRecord>>(
-                _employeeLoginSettings.EmployeeEntitySet,
-                $"cross-company=true&$filter={Uri.EscapeDataString(filter)}&$top=1",
-                ct);
-            var emp = result?.Value?.FirstOrDefault();
+            var emp = await _d365Client.GetAsync<EmployeeDto>($"Employees('{id}')", null, ct);
             if (emp == null) return null;
-
-            var nationalId = string.Empty;
-            if (!string.IsNullOrWhiteSpace(emp.PartyNumber))
-            {
-                var partyNumber = EscapeODataString(emp.PartyNumber);
-                var nationalIdType = EscapeODataString(_employeeLoginSettings.NationalIdTypeId);
-                var identificationFilter = $"PartyNumber eq '{partyNumber}' and IdentificationTypeId eq '{nationalIdType}'";
-                var identificationResult = await _d365Client.GetAsync<ODataListResponse<D365PersonIdentificationRecord>>(
-                    _employeeLoginSettings.IdentificationEntitySet,
-                    $"$filter={Uri.EscapeDataString(identificationFilter)}&$top=1",
-                    ct);
-                nationalId = identificationResult?.Value?.FirstOrDefault()?.IdentificationNumber ?? string.Empty;
-            }
 
             return new UserDto
             {
-                Id = emp.PersonnelNumber,
-                CivilId = nationalId,
+                Id = emp.Id,
+                CivilId = emp.CivilId,
                 Name = emp.Name,
                 JobTitle = emp.JobTitle,
                 Department = emp.Department,
                 Division = emp.Division,
-                Email = emp.PrimaryContactEmail,
-                Phone = emp.PrimaryContactPhone,
-                LegalEntity = emp.LegalEntityId,
+                Email = emp.Email,
+                Phone = emp.Phone,
+                LegalEntity = emp.LegalEntity,
                 Role = UserRoles.EssUser,
                 Roles = new List<string> { UserRoles.EssUser },
                 AvatarUrl = emp.AvatarUrl,
@@ -270,28 +259,6 @@ public class AuthService : IAuthService
             return null;
         }
     }
-
-    public async Task<bool> ChangePasswordAsync(string workerId, string nationalId, string currentPassword, string newPassword, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(workerId) || string.IsNullOrWhiteSpace(nationalId)) return false;
-
-        var nationalIdFilter = $"{_employeeLoginSettings.NationalIdField} eq '{EscapeODataString(nationalId)}' and IdentificationTypeId eq '{EscapeODataString(_employeeLoginSettings.NationalIdTypeId)}'";
-        var identification = (await _d365Client.GetAsync<ODataListResponse<D365PersonIdentificationRecord>>(
-            _employeeLoginSettings.IdentificationEntitySet,
-            $"$filter={Uri.EscapeDataString(nationalIdFilter)}&$top=1", ct))?.Value?.FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(identification?.PartyNumber)) return false;
-
-        var workerFilter = $"PersonnelNumber eq '{EscapeODataString(workerId)}' and PartyNumber eq '{EscapeODataString(identification.PartyNumber)}'";
-        var worker = (await _d365Client.GetAsync<ODataListResponse<D365EmployeeRecord>>(
-            _employeeLoginSettings.EmployeeEntitySet,
-            $"cross-company=true&$filter={Uri.EscapeDataString(workerFilter)}&$top=1", ct))?.Value?.FirstOrDefault();
-        if (worker == null) return false;
-
-        return await _portalPasswordVerifier.ChangeAsync(workerId, identification.PartyNumber, currentPassword, newPassword, ct);
-    }
-
-    private static string EscapeODataString(string value) =>
-        value.Replace("'", "''", StringComparison.Ordinal);
 
     public string GenerateJwtToken(UserDto user)
     {

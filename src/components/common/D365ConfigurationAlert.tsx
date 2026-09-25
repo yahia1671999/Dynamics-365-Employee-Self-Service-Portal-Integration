@@ -28,7 +28,7 @@ export const D365ConfigurationAlert: React.FC<D365ConfigurationAlertProps> = ({
   isChecking = false,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (isConfigured) {
     return null;
@@ -39,8 +39,7 @@ D365Settings__BaseUrl="https://<your-org>.operations.dynamics.com"
 D365Settings__TenantId="00000000-0000-0000-0000-000000000000"
 D365Settings__ClientId="00000000-0000-0000-0000-000000000000"
 D365Settings__ClientSecret="YourAzureAppRegistrationSecret"
-D365Settings__LegalEntity="USMF"
-D365Settings__UseDemoMode="false"`;
+D365Settings__LegalEntity="USMF"`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(sampleEnv);
@@ -64,13 +63,10 @@ D365Settings__UseDemoMode="false"`;
               <span className="font-bold text-[#A4262C] text-sm sm:text-base">
                 تكوين Microsoft Dynamics 365 غير متوفر (Configuration Missing)
               </span>
-              <span className="bg-[#A4262C] text-white text-[11px] px-2 py-0.5 font-bold">
-                الوضع التجريبي معطل (Demo Mode Disabled)
-              </span>
             </div>
             <p className="text-xs text-[#605E5C] mt-0.5">
               {errorMessage ||
-                'لم يتم تحديد بيانات الربط الفعلية مع بيئة Dynamics 365 في متغيرات بيئة الخادم الخلفي (ASP.NET Core). لن يتم عرض أية بيانات تجريبية وهمية.'}
+                'لم يتم تحديد بيانات الربط الفعلية مع بيئة Dynamics 365 في متغيرات بيئة الخادم. لن يتم عرض أية بيانات تجريبية وهمية.'}
             </p>
           </div>
         </div>

@@ -62,7 +62,6 @@ public class D365Settings
     public string ClientSecret { get; set; } = string.Empty;
     public string ResourceUrl { get; set; } = string.Empty;
     public string LegalEntity { get; set; } = string.Empty;
-    public string ReassignmentEndpointPath { get; set; } = "/api/services/PAR_EssAssignmentServiceGroup/PAR_EssAssignmentService/submitAssignment";
     public int TimeoutSeconds { get; set; } = 30;
 
     public static bool IsValidValue(string? val)
@@ -95,14 +94,6 @@ public class D365Settings
         if (!IsValidValue(LegalEntity)) missing.Add("D365Settings__LegalEntity (LegalEntity - missing)");
         return missing;
     }
-}
-
-public class EmployeeLoginSettings
-{
-    public string EmployeeEntitySet { get; set; } = "Employees";
-    public string IdentificationEntitySet { get; set; } = "PersonIdentificationNumbers";
-    public string NationalIdField { get; set; } = "IdentificationNumber";
-    public string NationalIdTypeId { get; set; } = "National ID";
 }
 
 public class D365ConfigurationException : Exception

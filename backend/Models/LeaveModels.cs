@@ -73,9 +73,6 @@ public class LeaveRequestDto
     [JsonPropertyName("requestedDays")]
     public double RequestedDays { get; set; }
 
-    [JsonPropertyName("requestedUnit")]
-    public string RequestedUnit { get; set; } = string.Empty;
-
     [JsonPropertyName("delegatedEmployeeId")]
     public string? DelegatedEmployeeId { get; set; }
 
@@ -92,10 +89,7 @@ public class LeaveRequestDto
     public bool HealthInsuranceOption { get; set; } = true;
 
     [JsonPropertyName("attachments")]
-    public List<System.Text.Json.JsonElement> Attachments { get; set; } = new();
-
-    [JsonPropertyName("saveAsDraft")]
-    public bool SaveAsDraft { get; set; }
+    public List<string> Attachments { get; set; } = new();
 
     [JsonPropertyName("submissionDate")]
     public string SubmissionDate { get; set; } = string.Empty;

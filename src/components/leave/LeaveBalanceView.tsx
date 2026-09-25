@@ -9,14 +9,16 @@ import {
   FileSpreadsheet,
   CheckCircle,
   HelpCircle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import { D365ActionBar } from '../common/D365ActionBar';
 import { D365Tabs, TabItem } from '../common/D365Tabs';
 import { D365FastTab } from '../common/D365FastTab';
 import { D365DataGrid, Column } from '../common/D365DataGrid';
 import { D365Tile } from '../common/D365Tile';
-import { LeaveBalance, LeaveMovementTransaction, LeaveTypeCode } from '../../types/d365.types';
+import { LeaveBalance, LeaveMovementTransaction, LeaveTypeCode, Employee } from '../../types/d365.types';
 import { d365Service } from '../../services/d365Service';
 
 interface LeaveBalanceViewProps {
@@ -24,6 +26,7 @@ interface LeaveBalanceViewProps {
   onOpenNewLeaveDialog: (type?: LeaveTypeCode) => void;
   onRefresh: () => void;
   onExportExcel: () => void;
+  employee?: Employee;
 }
 
 export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
@@ -31,9 +34,15 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
   onOpenNewLeaveDialog,
   onRefresh,
   onExportExcel,
+  employee,
 }) => {
   const [selectedLeaveTypeCode, setSelectedLeaveTypeCode] = useState<string>('ALL');
   const [asOfDate, setAsOfDate] = useState('2026-09-21');
+
+  const emp = employee || d365Service.getEmployee();
+  const isSeconded = emp.employmentStatus === 'Seconded' || (emp.employmentStatusAr && emp.employmentStatusAr.includes('منتدب'));
+  const isLoaned = emp.employmentStatus === 'Loaned' || (emp.employmentStatusAr && emp.employmentStatusAr.includes('معار'));
+  const isNormalActive = !isSeconded && !isLoaned;
 
   const selectedBalance =
     leaveBalances.find((b) => b.leaveTypeCode === selectedLeaveTypeCode) || leaveBalances[0];
@@ -108,8 +117,8 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
       width: '130px',
       render: (row) => (
         <div className="flex items-center gap-1.5">
-          <span className="font-mono font-bold text-sm text-[#0078D4]">{row.currentBalance}</span>
-          <span className="text-[11px] text-[#605E5C]">{row.unit}</span>
+          <span className="font-mono font-bold text-sm text-[#0078D4] tabular-nums">{row.currentBalance}</span>
+          <span className="text-[11px] text-[#605E5C] font-medium">{row.unit}</span>
         </div>
       ),
     },
@@ -117,32 +126,34 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
       key: 'accrualRate',
       header: 'معدل الاستحقاق (Accrual Rate)',
       width: '160px',
-      render: (row) => <span className="text-[11px] text-[#323130]">{row.accrualRate}</span>,
+      render: (row) => <span className="text-[11px] text-[#323130] font-medium">{row.accrualRate}</span>,
     },
     {
       key: 'asOfDate',
       header: 'حتى تاريخ',
       width: '100px',
-      render: () => <span className="font-mono text-[11px] text-[#605E5C]">{asOfDate}</span>,
+      render: () => <span className="font-mono text-[11px] text-[#605E5C] tabular-nums">{asOfDate}</span>,
     },
     {
       key: 'id',
       header: 'إجراء',
       width: '130px',
       render: (row) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setSelectedLeaveTypeCode(row.leaveTypeCode)}
-            className="px-2 py-0.5 bg-white hover:bg-[#F3F2F1] text-[#0078D4] border border-[#0078D4] text-[11px] font-medium transition-colors"
+            className="px-2.5 py-1 bg-white hover:bg-[#FAF9F8] text-[#0078D4] border border-[#0078D4] text-[11px] font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer focus-visible:outline-none"
           >
             التفاصيل
           </button>
-          <button
-            onClick={() => onOpenNewLeaveDialog(row.leaveTypeCode)}
-            className="px-2 py-0.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-medium transition-colors"
-          >
-            طلب
-          </button>
+          {isNormalActive && (
+            <button
+              onClick={() => onOpenNewLeaveDialog(row.leaveTypeCode)}
+              className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer focus-visible:outline-none"
+            >
+              طلب
+            </button>
+          )}
         </div>
       ),
     },
@@ -216,15 +227,32 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
     <div className="space-y-3">
       {/* Dynamics Action Bar */}
       <D365ActionBar
-        onNew={() =>
-          onOpenNewLeaveDialog(
-            selectedLeaveTypeCode !== 'ALL' ? (selectedLeaveTypeCode as LeaveTypeCode) : undefined
-          )
+        onNew={
+          isNormalActive
+            ? () =>
+                onOpenNewLeaveDialog(
+                  selectedLeaveTypeCode !== 'ALL' ? (selectedLeaveTypeCode as LeaveTypeCode) : undefined
+                )
+            : undefined
         }
-        newButtonLabel="طلب إجازة جديد"
+        newButtonLabel={isNormalActive ? "طلب إجازة جديد" : undefined}
         onRefresh={onRefresh}
         onExportExcel={onExportExcel}
       />
+
+      {/* Notice Banner when Seconded or Loaned */}
+      {!isNormalActive && (
+        <div className="p-3 bg-[#FFF4CE] border border-[#FFB900] text-[#7A4B00] text-xs flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-[#D83B01] shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <strong className="block font-semibold">قاعدة الأعمال بنظام Dynamics 365:</strong>
+            <span>
+              حالة الموظف الحالية: <strong>({emp.employmentStatusAr})</strong>.
+              وفقاً لقواعد الأعمال، يتم حجب تقديم طلبات الإجازات العادية أثناء فترة {isSeconded ? 'الندب' : 'الإعارة'}. يمكن استعراض الأرصدة وسجل الحركات المحاسبية فقط.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Page Title & As-of Date Filter Bar */}
       <div className="bg-white border border-[#D1D1D1] p-3 flex flex-wrap items-center justify-between gap-3">
@@ -239,8 +267,8 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
         </div>
 
         {/* As-of Date Filter Field */}
-        <div className="flex items-center gap-2 bg-[#F5F5F5] p-1.5 border border-[#D1D1D1]">
-          <label className="text-xs font-semibold text-[#323130] flex items-center gap-1">
+        <div className="flex items-center gap-2 bg-[#FAF9F8] p-1.5 border border-[#D2D0CE] shadow-2xs">
+          <label className="text-xs font-bold text-[#323130] flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-[#0078D4]" />
             <span>حتى تاريخ (As-of Date):</span>
           </label>
@@ -248,13 +276,13 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
             type="date"
             value={asOfDate}
             onChange={(e) => setAsOfDate(e.target.value)}
-            className="h-7 px-2 bg-white text-xs text-[#323130] border border-[#8A8886] focus:border-[#0078D4] outline-none font-mono"
+            className="h-7.5 px-2 bg-white text-xs text-[#201F1E] border border-[#8A8886] hover:border-[#323130] focus:border-[#0078D4] outline-none font-mono font-semibold shadow-2xs"
           />
         </div>
       </div>
 
       {/* Balance Tabs (D365 Pivot Style) */}
-      <div className="bg-white border border-[#D1D1D1]">
+      <div className="bg-white border border-[#D2D0CE] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
         <D365Tabs
           tabs={tabs}
           activeTabId={selectedLeaveTypeCode}
@@ -263,12 +291,12 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
 
         {/* Tab 1: Overview Table for all leave balances */}
         {selectedLeaveTypeCode === 'ALL' && (
-          <div className="p-3">
-            <div className="mb-2 flex items-center justify-between text-xs text-[#605E5C]">
-              <span className="font-semibold text-[#323130]">
+          <div className="p-3.5">
+            <div className="mb-2.5 flex items-center justify-between text-xs text-[#605E5C] flex-wrap gap-2">
+              <span className="font-bold text-xs text-[#201F1E]">
                 جدول كشف أرصدة الإجازات المعتمدة (Leave Balances Summary Grid):
               </span>
-              <span className="text-[11px]">الأرصدة محسوبة بدقة حتى: <strong className="font-mono text-[#323130]">{asOfDate}</strong></span>
+              <span className="text-[11px]">الأرصدة محسوبة بدقة حتى: <strong className="font-mono text-[#201F1E] font-bold tabular-nums">{asOfDate}</strong></span>
             </div>
             <D365DataGrid
               columns={overviewColumns}
@@ -282,58 +310,58 @@ export const LeaveBalanceView: React.FC<LeaveBalanceViewProps> = ({
         {/* Tab 2: Selected Leave Detail Header Card */}
         {selectedLeaveTypeCode !== 'ALL' && selectedBalance && (
           <div>
-            <div className="p-4 bg-[#FAF9F8] border-b border-[#EDEBE9]">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="p-3.5 sm:p-4 bg-[#FAF9F8] border-b border-[#EDEBE9]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Tile 1: Current Balance */}
-                <div className="bg-white border-x border-b border-[#D1D1D1] border-t-[3px] border-t-[#0078D4] p-3">
-                  <div className="text-[11px] text-[#605E5C] font-semibold">الرصيد الحالي المتاح</div>
-                  <div className="text-3xl font-bold font-sans text-[#0078D4] mt-1">
+                <div className="bg-white border border-[#D2D0CE] border-t-[4px] border-t-[#0078D4] p-4 sm:p-5 shadow-[0_2px_5px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_10px_25px_rgba(0,0,0,0.10),0_3px_8px_rgba(0,0,0,0.05)] hover:border-[#B3B0AD] hover:-translate-y-1">
+                  <div className="text-xs sm:text-[13px] text-[#605E5C] font-bold">الرصيد الحالي المتاح</div>
+                  <div className="text-4xl sm:text-[44px] font-black font-mono text-[#0078D4] mt-2 tabular-nums leading-none">
                     {selectedBalance.currentBalance}
-                    <span className="text-xs font-normal text-[#605E5C] mr-1.5">{selectedBalance.unit}</span>
+                    <span className="text-xs sm:text-sm font-semibold text-[#605E5C] mr-2">{selectedBalance.unit}</span>
                   </div>
-                  <div className="text-[10px] text-[#8A8886] mt-1">
+                  <div className="text-xs text-[#8A8886] font-mono mt-3.5 pt-2.5 border-t border-[#EDEBE9]">
                     حتى تاريخ {asOfDate}
                   </div>
                 </div>
 
                 {/* Tile 2: Accrual Rate */}
-                <div className="bg-white border-x border-b border-[#D1D1D1] border-t-[3px] border-t-[#107C41] p-3">
-                  <div className="text-[11px] text-[#605E5C] font-semibold">معدل الاستحقاق السنوي</div>
-                  <div className="text-base font-bold text-[#107C41] mt-1 truncate" title={selectedBalance.accrualRate}>
+                <div className="bg-white border border-[#D2D0CE] border-t-[4px] border-t-[#107C41] p-4 sm:p-5 shadow-[0_2px_5px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_10px_25px_rgba(0,0,0,0.10),0_3px_8px_rgba(0,0,0,0.05)] hover:border-[#B3B0AD] hover:-translate-y-1">
+                  <div className="text-xs sm:text-[13px] text-[#605E5C] font-bold">معدل الاستحقاق السنوي</div>
+                  <div className="text-base sm:text-lg font-bold text-[#107C41] mt-2 truncate" title={selectedBalance.accrualRate}>
                     {selectedBalance.accrualRate}
                   </div>
-                  <div className="text-[10px] text-[#8A8886] mt-1">
-                    خطة الاستحقاق: <strong className="font-mono text-[#323130]">{selectedBalance.accrualPlanId}</strong>
+                  <div className="text-xs text-[#8A8886] mt-3.5 pt-2.5 border-t border-[#EDEBE9] truncate">
+                    خطة الاستحقاق: <strong className="font-mono text-[#201F1E] font-bold">{selectedBalance.accrualPlanId}</strong>
                   </div>
                 </div>
 
                 {/* Tile 3: Consumed & Pending */}
-                <div className="bg-white border-x border-b border-[#D1D1D1] border-t-[3px] border-t-[#D83B01] p-3">
-                  <div className="text-[11px] text-[#605E5C] font-semibold">المستهلك والمعلق</div>
-                  <div className="flex items-center gap-3 mt-1">
+                <div className="bg-white border border-[#D2D0CE] border-t-[4px] border-t-[#D83B01] p-4 sm:p-5 shadow-[0_2px_5px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_10px_25px_rgba(216,59,1,0.14),0_3px_8px_rgba(0,0,0,0.05)] hover:border-[#D83B01] hover:-translate-y-1">
+                  <div className="text-xs sm:text-[13px] text-[#605E5C] font-bold">المستهلك والمعلق</div>
+                  <div className="flex items-center gap-3 mt-2">
                     <div>
                       <span className="text-xs text-[#8A8886]">المستهلك: </span>
-                      <strong className="text-sm font-bold text-[#323130]">{selectedBalance.consumedBalance}</strong>
+                      <strong className="text-base font-black font-mono text-[#201F1E] tabular-nums">{selectedBalance.consumedBalance}</strong>
                     </div>
                     <div>
                       <span className="text-xs text-[#8A8886]">قيد الاعتماد: </span>
-                      <strong className="text-sm font-bold text-[#D83B01]">{selectedBalance.pendingBalance}</strong>
+                      <strong className="text-base font-black font-mono text-[#D83B01] tabular-nums">{selectedBalance.pendingBalance}</strong>
                     </div>
                   </div>
-                  <div className="text-[10px] text-[#8A8886] mt-1">
-                    إجمالي المخصص السنوي: {selectedBalance.allocatedBalance} {selectedBalance.unit}
+                  <div className="text-xs text-[#8A8886] mt-3.5 pt-2.5 border-t border-[#EDEBE9] truncate">
+                    إجمالي المخصص: {selectedBalance.allocatedBalance} {selectedBalance.unit}
                   </div>
                 </div>
 
                 {/* Tile 4: Quick Action */}
-                <div className="bg-white border-x border-b border-[#D1D1D1] border-t-[3px] border-t-[#0078D4] p-3 flex flex-col justify-between">
+                <div className="bg-white border border-[#D2D0CE] border-t-[4px] border-t-[#0078D4] p-4 sm:p-5 shadow-[0_2px_5px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] flex flex-col justify-between transition-all hover:shadow-[0_10px_25px_rgba(0,0,0,0.10),0_3px_8px_rgba(0,0,0,0.05)] hover:border-[#B3B0AD] hover:-translate-y-1">
                   <div>
-                    <div className="text-[11px] font-semibold text-[#323130]">إجراء مباشر</div>
-                    <div className="text-[10px] text-[#605E5C] mt-0.5">تقديم طلب على هذا الرصيد مباشرة</div>
+                    <div className="text-xs sm:text-[13px] font-bold text-[#201F1E]">إجراء مباشر</div>
+                    <div className="text-xs text-[#605E5C] mt-1">تقديم طلب على هذا الرصيد مباشرة</div>
                   </div>
                   <button
                     onClick={() => onOpenNewLeaveDialog(selectedBalance.leaveTypeCode)}
-                    className="w-full mt-2 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                    className="w-full mt-3 py-2 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs hover:shadow-xs cursor-pointer focus-visible:outline-none"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>طلب إجازة {selectedBalance.leaveTypeTitle.split(' ')[0]}</span>

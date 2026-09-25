@@ -101,9 +101,6 @@ export class ApiClient {
 
       // Handle non-OK HTTP status codes (4xx, 5xx)
       if (!response.ok) {
-        if (response.status === 401 && authService.isAuthenticated()) {
-          authService.invalidateSession();
-        }
         let errorMessage = `خطأ في استجابة خادم Dynamics 365 [HTTP ${response.status} ${response.statusText}]`;
         try {
           const errData = await response.json();

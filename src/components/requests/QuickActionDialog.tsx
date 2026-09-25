@@ -1,14 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { Send, CheckCircle2, AlertCircle, FileText, Upload, Calendar, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Send, AlertCircle, Calendar, Info, ShieldCheck } from 'lucide-react';
 import { D365Dialog } from '../common/D365Dialog';
 import { d365Service } from '../../services/d365Service';
-import { Employee, UnifiedRequestItem } from '../../types/d365.types';
-import { reassignmentApi } from '../../services/api/reassignmentApi';
+import { UnifiedRequestItem } from '../../types/d365.types';
+import { usePersonalization } from '../../context/PersonalizationContext';
+import { getPopupTranslations, PopupTranslations } from '../../i18n/popupTranslations';
 
 export type QuickActionType =
   | 'PERMISSION'
   | 'SECONDMENT'
+  | 'SECONDMENT_RENEW'
+  | 'SECONDMENT_TERMINATE'
   | 'LOAN'
+  | 'LOAN_RENEW'
+  | 'LOAN_TERMINATE'
   | 'TRANSFER'
   | 'FINANCIAL_DISCLOSURE'
   | 'DRUG_TEST';
@@ -19,157 +24,260 @@ interface QuickActionConfig {
   typeLabel: string;
   dateLabel: string;
   reasonLabel: string;
+  badgeText?: string;
+  destinationHelpText?: string;
+  defaultEntity?: string;
+  defaultNotes?: string;
 }
 
-const ACTION_CONFIGS: Record<QuickActionType, QuickActionConfig> = {
-  PERMISSION: {
-    title: 'تقديم طلب إذن غياب / انصراف',
-    subtitle: 'طلب إذن شخصي أو مهمة عمل رسمية - Microsoft Dynamics 365 Human Resources',
-    typeLabel: 'نوع الإذن',
-    dateLabel: 'تاريخ الإذن المطلوب',
-    reasonLabel: 'مبررات وأسباب طلب الإذن',
-  },
-  SECONDMENT: {
-    title: 'تقديم طلب ندب وظيفي',
-    subtitle: 'إرسال طلب الندب الوظيفي إلى الموارد البشرية',
-    typeLabel: 'عنوان جهة الندب',
-    dateLabel: 'تاريخ بدء الندب المطلوب',
-    reasonLabel: 'ملاحظات',
-  },
-  LOAN: {
-    title: 'تقديم طلب إعارة وظيفية',
-    subtitle: 'طلب إعارة داخلية أو خارجية - Microsoft Dynamics 365 Human Resources',
-    typeLabel: 'الجهة المستعيرة',
-    dateLabel: 'تاريخ بدء فترة الإعارة',
-    reasonLabel: 'تفاصيل ومبررات طلب الإعارة',
-  },
-  TRANSFER: {
-    title: 'تقديم طلب نقل وظيفي',
-    subtitle: 'طلب نقل وظيفي بين الإدارات أو الفروع - Microsoft Dynamics 365 Human Resources',
-    typeLabel: 'الإدارة أو الجهة المطلوب النقل إليها',
-    dateLabel: 'التاريخ المقترح للنقل',
-    reasonLabel: 'أسباب ومبررات طلب النقل الوظيفي',
-  },
-  FINANCIAL_DISCLOSURE: {
-    title: 'إقرارات الذمة المالية الدورية',
-    subtitle: 'تسجيل وتحديث إقرار الذمة المالية الإلزامي - الرقابة الإدارية والحوكمة',
-    typeLabel: 'نوع إقرار الذمة المالية',
-    dateLabel: 'تاريخ سريان الإقرار',
-    reasonLabel: 'إيضاحات وبيانات الذمة المالية والممتلكات',
-  },
-  DRUG_TEST: {
-    title: 'سجل وفحص الكشف عن المخدرات الدوري',
-    subtitle: 'سجل التحاليل الطبية الدورية الإلزامية - صندوق مكافحة وعلاج الإدمان',
-    typeLabel: 'الجهة الطبية المعتمدة للتحليل',
-    dateLabel: 'تاريخ إجراء الفحص الطبي',
-    reasonLabel: 'رقم التقرير الطبي ونتيجة الفحص المعتمد',
-  },
-};
+function getActionConfig(actionType: QuickActionType, pt: PopupTranslations): QuickActionConfig {
+  const q = pt.quickAction;
+  switch (actionType) {
+    case 'PERMISSION':
+      return {
+        title: q.permissionTitle,
+        subtitle: q.permissionSubtitle,
+        typeLabel: q.permissionTypeLabel,
+        dateLabel: q.permissionDateLabel,
+        reasonLabel: q.permissionReasonLabel,
+        defaultEntity: q.permissionDefaultEntity,
+        defaultNotes: q.permissionDefaultNotes,
+      };
+    case 'SECONDMENT':
+      return {
+        title: q.secondmentTitle,
+        subtitle: q.secondmentSubtitle,
+        typeLabel: q.secondmentTypeLabel,
+        dateLabel: q.secondmentDateLabel,
+        reasonLabel: q.secondmentReasonLabel,
+        defaultEntity: q.secondmentDefaultEntity,
+        defaultNotes: q.secondmentDefaultNotes,
+      };
+    case 'SECONDMENT_RENEW':
+      return {
+        title: q.secondmentRenewTitle,
+        subtitle: q.secondmentRenewSubtitle,
+        typeLabel: q.secondmentRenewTypeLabel,
+        dateLabel: q.secondmentRenewDateLabel,
+        reasonLabel: q.secondmentRenewReasonLabel,
+        badgeText: q.secondmentRenewBadgeText,
+        destinationHelpText: q.secondmentRenewHelpText,
+        defaultNotes: q.secondmentRenewDefaultNotes,
+      };
+    case 'SECONDMENT_TERMINATE':
+      return {
+        title: q.secondmentTerminateTitle,
+        subtitle: q.secondmentTerminateSubtitle,
+        typeLabel: q.secondmentTerminateTypeLabel,
+        dateLabel: q.secondmentTerminateDateLabel,
+        reasonLabel: q.secondmentTerminateReasonLabel,
+        badgeText: q.secondmentTerminateBadgeText,
+        destinationHelpText: q.secondmentTerminateHelpText,
+        defaultNotes: q.secondmentTerminateDefaultNotes,
+      };
+    case 'LOAN':
+      return {
+        title: q.loanTitle,
+        subtitle: q.loanSubtitle,
+        typeLabel: q.loanTypeLabel,
+        dateLabel: q.loanDateLabel,
+        reasonLabel: q.loanReasonLabel,
+        defaultEntity: q.loanDefaultEntity,
+        defaultNotes: q.loanDefaultNotes,
+      };
+    case 'LOAN_RENEW':
+      return {
+        title: q.loanRenewTitle,
+        subtitle: q.loanRenewSubtitle,
+        typeLabel: q.loanRenewTypeLabel,
+        dateLabel: q.loanRenewDateLabel,
+        reasonLabel: q.loanRenewReasonLabel,
+        badgeText: q.loanRenewBadgeText,
+        destinationHelpText: q.loanRenewHelpText,
+        defaultNotes: q.loanRenewDefaultNotes,
+      };
+    case 'LOAN_TERMINATE':
+      return {
+        title: q.loanTerminateTitle,
+        subtitle: q.loanTerminateSubtitle,
+        typeLabel: q.loanTerminateTypeLabel,
+        dateLabel: q.loanTerminateDateLabel,
+        reasonLabel: q.loanTerminateReasonLabel,
+        badgeText: q.loanTerminateBadgeText,
+        destinationHelpText: q.loanTerminateHelpText,
+        defaultNotes: q.loanTerminateDefaultNotes,
+      };
+    case 'TRANSFER':
+      return {
+        title: q.transferTitle,
+        subtitle: q.transferSubtitle,
+        typeLabel: q.transferTypeLabel,
+        dateLabel: q.transferDateLabel,
+        reasonLabel: q.transferReasonLabel,
+        defaultEntity: q.transferDefaultEntity,
+        defaultNotes: q.transferDefaultNotes,
+      };
+    case 'FINANCIAL_DISCLOSURE':
+      return {
+        title: q.disclosureTitle,
+        subtitle: q.disclosureSubtitle,
+        typeLabel: q.disclosureTypeLabel,
+        dateLabel: q.disclosureDateLabel,
+        reasonLabel: q.disclosureReasonLabel,
+        defaultEntity: q.disclosureDefaultEntity,
+        defaultNotes: q.disclosureDefaultNotes,
+      };
+    case 'DRUG_TEST':
+      return {
+        title: q.drugTestTitle,
+        subtitle: q.drugTestSubtitle,
+        typeLabel: q.drugTestTypeLabel,
+        dateLabel: q.drugTestDateLabel,
+        reasonLabel: q.drugTestReasonLabel,
+        defaultEntity: q.drugTestDefaultEntity,
+        defaultNotes: q.drugTestDefaultNotes,
+      };
+  }
+}
 
 interface QuickActionDialogProps {
   isOpen: boolean;
   onClose: () => void;
   actionType: QuickActionType | null;
-  employee: Employee;
   onSuccess: (message: string) => void;
+  defaultEntity?: string;
 }
 
 export const QuickActionDialog: React.FC<QuickActionDialogProps> = ({
   isOpen,
   onClose,
   actionType,
-  employee,
   onSuccess,
+  defaultEntity,
 }) => {
-  const [requestDate, setRequestDate] = useState('');
+  const { language } = usePersonalization();
+  const pt = getPopupTranslations(language);
+
+  const [requestDate, setRequestDate] = useState('2026-10-01');
   const [targetEntity, setTargetEntity] = useState('');
   const [notes, setNotes] = useState('');
-  const [reassignmentType, setReassignmentType] = useState(0);
-  const [newCityKey, setNewCityKey] = useState('');
-  const [cities, setCities] = useState<{ cityKey: string; name: string }[]>([]);
+  const [autoApproveInWorkflow, setAutoApproveInWorkflow] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen || actionType !== 'SECONDMENT') return;
-    let current = true;
-    reassignmentApi.getCities().then((result) => {
-      if (current && result.isSuccess && result.data) setCities(result.data);
-    });
-    return () => { current = false; };
-  }, [isOpen, actionType]);
+    if (isOpen && actionType) {
+      setErrorMessage(null);
+      setIsSubmitting(false);
+
+      const cfg = getActionConfig(actionType, pt);
+
+      if (actionType === 'SECONDMENT_RENEW' || actionType === 'SECONDMENT_TERMINATE') {
+        const activeEntity = defaultEntity || d365Service.getActiveSecondmentEntity();
+        setTargetEntity(activeEntity);
+        setRequestDate('2027-04-01');
+        setNotes(cfg.defaultNotes || '');
+      } else if (actionType === 'LOAN_RENEW' || actionType === 'LOAN_TERMINATE') {
+        const activeEntity = defaultEntity || d365Service.getActiveLoanEntity();
+        setTargetEntity(activeEntity);
+        setRequestDate('2027-05-01');
+        setNotes(cfg.defaultNotes || '');
+      } else {
+        setTargetEntity(defaultEntity || cfg.defaultEntity || '');
+        setRequestDate('2026-10-01');
+        setNotes(cfg.defaultNotes || '');
+      }
+    }
+  }, [isOpen, actionType, defaultEntity, language]);
 
   if (!actionType) return null;
-  const config = ACTION_CONFIGS[actionType];
+  const config = getActionConfig(actionType, pt);
 
-  const handleSubmit = async () => {
-    if (!requestDate) {
-      setErrorMessage(`يرجى إدخال ${config.dateLabel}`);
-      return;
-    }
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
-    if (actionType === 'SECONDMENT') {
-      try {
-        const result = await reassignmentApi.submit(requestDate, targetEntity.trim(), reassignmentType, newCityKey);
-        if (!result.isSuccess || !result.data?.submitted || !result.data.assignmentId) {
-          setErrorMessage(result.error || 'تعذر إرسال طلب الندب إلى Dynamics 365.');
-          return;
-        }
-        onSuccess(`تم إرسال طلب الندب الوظيفي برقم ${result.data.assignmentId}.`);
-        onClose();
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'تعذر إرسال طلب الندب إلى Dynamics 365.');
-      } finally {
-        setIsSubmitting(false);
+  const handleSubmit = () => {
+    let effectiveEntity = targetEntity.trim();
+    if (!effectiveEntity) {
+      if (actionType === 'SECONDMENT_RENEW' || actionType === 'SECONDMENT_TERMINATE') {
+        effectiveEntity = defaultEntity || d365Service.getActiveSecondmentEntity();
+        setTargetEntity(effectiveEntity);
+      } else if (actionType === 'LOAN_RENEW' || actionType === 'LOAN_TERMINATE') {
+        effectiveEntity = defaultEntity || d365Service.getActiveLoanEntity();
+        setTargetEntity(effectiveEntity);
+      } else {
+        setErrorMessage(`${pt.quickAction.validationEnterPrefix} ${config.typeLabel}`);
+        return;
       }
-      return;
-    }
-
-    if (!targetEntity.trim()) {
-      setErrorMessage(`يرجى إدخال ${config.typeLabel}`);
-      setIsSubmitting(false);
-      return;
     }
     if (!notes.trim()) {
-      setErrorMessage(`يرجى كتابة ${config.reasonLabel}`);
-      setIsSubmitting(false);
+      setErrorMessage(`${pt.quickAction.validationWritePrefix} ${config.reasonLabel}`);
       return;
     }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
 
     const categoryMap: Record<QuickActionType, UnifiedRequestItem['category']> = {
       PERMISSION: 'PERMISSION',
       SECONDMENT: 'SECONDMENT',
+      SECONDMENT_RENEW: 'SECONDMENT',
+      SECONDMENT_TERMINATE: 'SECONDMENT',
       LOAN: 'LOAN',
+      LOAN_RENEW: 'LOAN',
+      LOAN_TERMINATE: 'LOAN',
       TRANSFER: 'TRANSFER',
       FINANCIAL_DISCLOSURE: 'MONITORING',
       DRUG_TEST: 'MONITORING',
     };
 
-    const typeTitleMap: Record<QuickActionType, string> = {
-      PERMISSION: 'طلب إذن غياب / انصراف',
-      SECONDMENT: 'طلب ندب وظيفي',
-      LOAN: 'طلب سلفة مالية',
-      TRANSFER: 'طلب نقل وظيفي',
-      FINANCIAL_DISCLOSURE: 'طلب إقرار ذمة مالية',
-      DRUG_TEST: 'طلب فحص كشف مخدرات',
-    };
-
+    // Submit request into D365 Unified Requests
     d365Service.submitGeneralRequest(
-      `${typeTitleMap[actionType]} (${targetEntity})`,
+      `${config.title} (${effectiveEntity})`,
       categoryMap[actionType],
       notes,
-      undefined,
+      autoApproveInWorkflow ? 'Approved' : 'InReview',
       requestDate
     );
 
+    // Business Rules Execution upon approval:
+    if (autoApproveInWorkflow) {
+      if (actionType === 'SECONDMENT' || actionType === 'SECONDMENT_RENEW') {
+        d365Service.setEmployeeEmploymentStatus('Seconded', effectiveEntity);
+      } else if (actionType === 'SECONDMENT_TERMINATE') {
+        d365Service.setEmployeeEmploymentStatus('Active');
+      } else if (actionType === 'LOAN' || actionType === 'LOAN_RENEW') {
+        d365Service.setEmployeeEmploymentStatus('Loaned', effectiveEntity);
+      } else if (actionType === 'LOAN_TERMINATE') {
+        d365Service.setEmployeeEmploymentStatus('Active');
+      }
+    }
+
     setTimeout(() => {
       setIsSubmitting(false);
-      onSuccess(`تم إرسال ${config.title} بنجاح إلى سير عمل الموارد البشرية.`);
+      let successMsg = pt.quickAction.successGeneral;
+      if (autoApproveInWorkflow) {
+        if (actionType === 'SECONDMENT') {
+          successMsg = pt.quickAction.successSecondedActive;
+        } else if (actionType === 'SECONDMENT_RENEW') {
+          successMsg = pt.quickAction.successSecondedRenewed;
+        } else if (actionType === 'SECONDMENT_TERMINATE') {
+          successMsg = pt.quickAction.successSecondedTerminated;
+        } else if (actionType === 'LOAN') {
+          successMsg = pt.quickAction.successLoanActive;
+        } else if (actionType === 'LOAN_RENEW') {
+          successMsg = pt.quickAction.successLoanRenewed;
+        } else if (actionType === 'LOAN_TERMINATE') {
+          successMsg = pt.quickAction.successLoanTerminated;
+        }
+      }
+      onSuccess(successMsg);
       onClose();
-    }, 400);
+    }, 350);
   };
+
+  const isRenewalOrTermination =
+    actionType === 'SECONDMENT_RENEW' ||
+    actionType === 'SECONDMENT_TERMINATE' ||
+    actionType === 'LOAN_RENEW' ||
+    actionType === 'LOAN_TERMINATE';
 
   return (
     <D365Dialog
@@ -187,26 +295,42 @@ export const QuickActionDialog: React.FC<QuickActionDialogProps> = ({
           </div>
         )}
 
-        <div className="space-y-3">
-          {actionType === 'SECONDMENT' && (
-            <div className="grid grid-cols-2 gap-2 bg-[#F9F9F9] border border-[#EDEBE9] p-2 text-xs">
-              <div><span className="text-[#605E5C] block">الموظف</span><strong>{employee.name}</strong></div>
-              <div><span className="text-[#605E5C] block">الوظيفة</span><strong>{employee.jobTitle}</strong></div>
+        {/* Business Rule Notice Banner */}
+        {config.destinationHelpText && (
+          <div className="p-2.5 bg-[#EFF6FC] border border-[#0078D4] text-[#004578] text-xs flex items-start gap-2">
+            <Info className="w-4 h-4 text-[#0078D4] shrink-0 mt-0.5" />
+            <div>
+              <strong className="block font-semibold">{pt.common.businessRuleTitle}</strong>
+              <span>{config.destinationHelpText}</span>
             </div>
-          )}
-          {actionType !== 'SECONDMENT' && <div>
-            <label className="block text-xs font-semibold text-[#323130] mb-1">
-              {config.typeLabel} <span className="text-[#A80000]">*</span>
-            </label>
-            <input
-              type="text"
-              value={targetEntity}
-              onChange={(e) => setTargetEntity(e.target.value)}
-              placeholder={`أدخل ${config.typeLabel}...`}
-              className="w-full h-8 px-2 bg-white text-xs text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none"
-            />
-          </div>}
+          </div>
+        )}
 
+        <div className="space-y-3">
+          {/* Destination Entity Input */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-[#323130]">
+                {config.typeLabel} <span className="text-[#A80000]">*</span>
+              </label>
+              {isRenewalOrTermination && (
+                <span className="text-[10px] bg-[#EFF6FC] text-[#0078D4] border border-[#C7E0F4] px-1.5 py-0.2 font-semibold">
+                  {pt.common.autoRetained}
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={targetEntity}
+                onChange={(e) => setTargetEntity(e.target.value)}
+                placeholder={`${pt.quickAction.entityPlaceholderPrefix} ${config.typeLabel}...`}
+                className="w-full h-8 px-2 bg-white text-xs text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Date Input */}
           <div>
             <label className="block text-xs font-semibold text-[#323130] mb-1">
               {config.dateLabel} <span className="text-[#A80000]">*</span>
@@ -222,64 +346,67 @@ export const QuickActionDialog: React.FC<QuickActionDialogProps> = ({
             </div>
           </div>
 
-          {actionType === 'SECONDMENT' && (
-            <>
-              <div>
-                <label className="block text-xs font-semibold text-[#323130] mb-1">عنوان جهة الندب</label>
-                <input type="text" value={targetEntity} onChange={(e) => setTargetEntity(e.target.value)}
-                  className="w-full h-8 px-2 bg-white text-xs border border-[#8A8886] focus:border-[#0078D4] outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#323130] mb-1">نوع الندب</label>
-                <select value={reassignmentType} onChange={(e) => setReassignmentType(Number(e.target.value))}
-                  className="w-full h-8 px-2 bg-white text-xs border border-[#8A8886] focus:border-[#0078D4] outline-none">
-                  <option value={0}>ندب داخلي</option>
-                  <option value={1}>ندب خارجي</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#323130] mb-1">المدينة الجديدة (مصر)</label>
-                <select value={newCityKey} onChange={(e) => setNewCityKey(e.target.value)}
-                  className="w-full h-8 px-2 bg-white text-xs border border-[#8A8886] focus:border-[#0078D4] outline-none">
-                  <option value="">بدون مدينة محددة</option>
-                  {cities.map((city) => <option key={city.cityKey} value={city.cityKey}>{city.name}</option>)}
-                </select>
-              </div>
-            </>
-          )}
-          {actionType !== 'SECONDMENT' && <div>
+          {/* Notes Input */}
+          <div>
             <label className="block text-xs font-semibold text-[#323130] mb-1">
               {config.reasonLabel} <span className="text-[#A80000]">*</span>
             </label>
             <textarea
-              rows={4}
+              rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="اكتب التفاصيل والمبررات هنا..."
+              placeholder={pt.quickAction.notesPlaceholder}
               className="w-full p-2 text-xs bg-white text-[#323130] border border-[#8A8886] focus:border-[#0078D4] focus:ring-1 focus:ring-[#0078D4] outline-none"
             ></textarea>
-          </div>}
+          </div>
+
+          {/* Workflow Auto-Approval Option for Review */}
+          <div className="p-2.5 bg-[#FAF9F8] border border-[#EDEBE9] text-xs">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-[#323130]">
+              <input
+                type="checkbox"
+                checked={autoApproveInWorkflow}
+                onChange={(e) => setAutoApproveInWorkflow(e.target.checked)}
+                className="w-4 h-4 text-[#0078D4] rounded border-gray-300 focus:ring-[#0078D4]"
+              />
+              <span className="font-semibold">
+                {pt.quickAction.autoApproveLabel}
+              </span>
+            </label>
+            <p className="text-[11px] text-[#605E5C] mt-1 rtl:mr-6 ltr:ml-6">
+              {autoApproveInWorkflow
+                ? pt.quickAction.autoApproveActiveHint
+                : pt.quickAction.autoApproveInactiveHint}
+            </p>
+          </div>
         </div>
 
         {/* Buttons */}
-        <div className="pt-2 flex items-center justify-start gap-2 border-t border-[#EDEBE9]">
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>{isSubmitting ? 'جاري الإرسال...' : 'إرسال الطلب'}</span>
-          </button>
+        <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#EDEBE9]">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="flex items-center justify-center gap-1.5 px-4 py-1.5 min-h-[32px] bg-[#0078D4] hover:bg-[#106EBE] text-white text-xs font-semibold border border-[#0078D4] transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5 rtl:rotate-180" />
+              <span>{isSubmitting ? pt.common.submitting : pt.common.confirmAndSubmit}</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex items-center gap-1 px-4 py-1.5 bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors"
-          >
-            <span>إلغاء</span>
-          </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center justify-center gap-1 px-4 py-1.5 min-h-[32px] bg-white hover:bg-[#F3F2F1] text-[#605E5C] text-xs border border-[#D1D1D1] transition-colors cursor-pointer"
+            >
+              <span>{pt.common.cancel}</span>
+            </button>
+          </div>
+
+          <div className="text-[11px] text-[#605E5C] flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#107C41]" />
+            <span>{pt.common.rulesEngineNotice}</span>
+          </div>
         </div>
       </div>
     </D365Dialog>
