@@ -3,13 +3,13 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle2,
-  FileSpreadsheet,
-  Award
 } from 'lucide-react';
 import { D365Dialog } from '../common/D365Dialog';
 import { TrainingCourse } from '../../types/d365.types';
 import { TrainingEvaluationDialog } from './TrainingEvaluationDialog';
 import { exportToCsv } from '../../utils/exportUtils';
+import { usePersonalization } from '../../context/PersonalizationContext';
+import { getPopupTranslations } from '../../i18n/popupTranslations';
 
 interface TrainingCoursesDialogProps {
   isOpen: boolean;
@@ -18,54 +18,75 @@ interface TrainingCoursesDialogProps {
   onRefresh?: () => void;
 }
 
-const RATING_HEADERS = ['ممتاز', 'جيد جداً', 'جيد', 'متوسط', 'ضعيف'];
-
 export const TrainingCoursesDialog: React.FC<TrainingCoursesDialogProps> = ({
   isOpen,
   onClose,
   courses,
   onRefresh,
 }) => {
+  const { language } = usePersonalization();
+  const pt = getPopupTranslations(language);
+
   const [selectedCourse, setSelectedCourse] = useState<TrainingCourse | null>(courses[0] || null);
   const [isImmediateEvalOpen, setIsImmediateEvalOpen] = useState(true);
   const [is3MonthsEvalOpen, setIs3MonthsEvalOpen] = useState(true);
   const [evalTargetCourse, setEvalTargetCourse] = useState<TrainingCourse | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const ratingHeaders = [
+    pt.training.ratingExcellent,
+    pt.training.ratingVeryGood,
+    pt.training.ratingGood,
+    pt.training.ratingFair,
+    pt.training.ratingPoor,
+  ];
+
   const handleExport = () => {
     exportToCsv(
       'Employee_Training_Courses',
       courses.map((c) => ({
-        'عنوان الدورة': c.courseTitle,
-        'معرف الدورة': c.courseId,
-        'تاريخ البدء': c.startDate,
-        'تاريخ الانتهاء': c.endDate,
-        'التقييم العام': c.generalEvaluationScore || '-',
-        'تقييم بعد 3 شهور': c.evaluationAfter3MonthsScore || '-',
-        'حالة الحضور': c.attendanceStatusAr,
+        [pt.training.colCourseTitle]: c.courseTitle,
+        [pt.training.colCourseId]: c.courseId,
+        [pt.training.colStartDate]: c.startDate,
+        [pt.training.colEndDate]: c.endDate,
+        [pt.training.colGeneralEval]: c.generalEvaluationScore || '-',
+        [pt.training.col3MonthsEval]: c.evaluationAfter3MonthsScore || '-',
       }))
     );
-    setToastMessage('تم تصدير سجل الدورات التدريبية إلى Excel بنجاح.');
+    setToastMessage(pt.training.exportSuccessMsg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleEvaluationSuccess = () => {
     if (onRefresh) onRefresh();
-    setToastMessage('تم حفظ وإرسال تقييم الدورة التدريبية بنجاح.');
+    setToastMessage(pt.training.evalSuccessMsg);
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  const immediateStatements = [
+    { statement: pt.training.immStatement1, selected: pt.training.ratingExcellent },
+    { statement: pt.training.immStatement2, selected: pt.training.ratingExcellent },
+    { statement: pt.training.immStatement3, selected: pt.training.ratingVeryGood },
+    { statement: pt.training.immStatement4, selected: pt.training.ratingExcellent },
+  ];
+
+  const threeMonthStatements = [
+    { statement: pt.training.threeMoStatement1, selected: pt.training.ratingVeryGood },
+    { statement: pt.training.threeMoStatement2, selected: pt.training.ratingExcellent },
+    { statement: pt.training.threeMoStatement3, selected: pt.training.ratingVeryGood },
+  ];
 
   return (
     <>
       <D365Dialog
         isOpen={isOpen}
         onClose={onClose}
-        title="اختصاص الدورات التدريبية"
-        subtitle="سجل البرامج والدورات التدريبية المعتمدة - Microsoft Dynamics 365 Human Resources"
+        title={pt.training.dialogTitle}
+        subtitle={pt.training.dialogSubtitle}
         maxWidth="4xl"
-        secondaryActionLabel="إغلاق"
+        secondaryActionLabel={pt.common.close}
         onSecondaryAction={onClose}
-        tertiaryActionLabel="تصدير إلى Excel"
+        tertiaryActionLabel={pt.common.exportExcel}
         onTertiaryAction={handleExport}
       >
         <div className="space-y-4">
@@ -75,24 +96,24 @@ export const TrainingCoursesDialog: React.FC<TrainingCoursesDialogProps> = ({
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{toastMessage}</span>
               </div>
-              <button onClick={() => setToastMessage(null)} className="text-xs hover:underline font-bold">
-                إغلاق
+              <button onClick={() => setToastMessage(null)} className="text-xs hover:underline font-bold cursor-pointer">
+                {pt.common.close}
               </button>
             </div>
           )}
 
-          {/* Main Table: Matching Screenshot 5 */}
+          {/* Main Table */}
           <div className="bg-white border border-[#D1D1D1] overflow-x-auto">
-            <table className="w-full text-xs text-right border-collapse">
+            <table className="w-full text-xs text-start border-collapse">
               <thead>
                 <tr className="bg-[#F3F2F1] border-b border-[#D1D1D1] text-[#323130] font-semibold">
-                  <th className="p-2.5 border-l border-[#D1D1D1]">عنوان الدورة التدريبية</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">معرف الدورة</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">تاريخ البدء</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">تاريخ الانتهاء</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">التقييم العام</th>
-                  <th className="p-2.5 border-l border-[#D1D1D1]">التقييم العام للموظف بعد 3 شهور</th>
-                  <th className="p-2.5 text-center w-28">الإجراء</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.colCourseTitle}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.colCourseId}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.colStartDate}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.colEndDate}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.colGeneralEval}</th>
+                  <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.col3MonthsEval}</th>
+                  <th className="p-2.5 text-center w-28">{pt.common.action}</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,22 +128,22 @@ export const TrainingCoursesDialog: React.FC<TrainingCoursesDialogProps> = ({
                         isSelected ? 'bg-[#EDEBE9]' : 'hover:bg-[#FAF9F8]'
                       }`}
                     >
-                      <td className="p-2.5 border-l border-[#EDEBE9] font-semibold text-[#323130]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-semibold text-[#323130]">
                         {course.courseTitle}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] font-mono text-[#0078D4]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-mono text-[#0078D4]">
                         {course.courseId}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] font-mono text-[#605E5C]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-mono text-[#605E5C]">
                         {course.startDate}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] font-mono text-[#605E5C]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-mono text-[#605E5C]">
                         {course.endDate}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] text-[#323130]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-[#323130]">
                         {course.generalEvaluationScore || '-'}
                       </td>
-                      <td className="p-2.5 border-l border-[#EDEBE9] text-[#323130]">
+                      <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-[#323130]">
                         {course.evaluationAfter3MonthsScore || '-'}
                       </td>
                       <td className="p-2.5 text-center" onClick={(e) => e.stopPropagation()}>
@@ -130,13 +151,13 @@ export const TrainingCoursesDialog: React.FC<TrainingCoursesDialogProps> = ({
                           <button
                             type="button"
                             onClick={() => setEvalTargetCourse(course)}
-                            className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-semibold transition-colors"
+                            className="px-2.5 py-1 bg-[#0078D4] hover:bg-[#106EBE] text-white text-[11px] font-semibold transition-colors cursor-pointer"
                           >
-                            تقييم الدورة
+                            {pt.training.evaluateCourseBtn}
                           </button>
                         ) : (
                           <span className="inline-block px-2 py-1 text-[11px] bg-[#DFF6DD] text-[#107C41] font-semibold">
-                            تم التقييم
+                            {pt.training.evaluatedBadge}
                           </span>
                         )}
                       </td>
@@ -147,43 +168,38 @@ export const TrainingCoursesDialog: React.FC<TrainingCoursesDialogProps> = ({
             </table>
           </div>
 
-          {/* Accordion 1: التقييم العام للبرنامج بعد الدورة مباشرة (Matching Screenshot 5) */}
+          {/* Accordion 1: Immediate Evaluation */}
           <div className="bg-white border border-[#D1D1D1]">
             <button
               type="button"
               onClick={() => setIsImmediateEvalOpen(!isImmediateEvalOpen)}
-              className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors"
+              className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors cursor-pointer"
             >
-              <span>التقييم العام للبرنامج بعد الدورة مباشرة</span>
+              <span>{pt.training.immediateEvalAccordion}</span>
               {isImmediateEvalOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
 
             {isImmediateEvalOpen && (
-              <div className="p-3">
-                <table className="w-full text-xs text-right border-collapse border border-[#D1D1D1]">
+              <div className="p-3 overflow-x-auto">
+                <table className="w-full min-w-[480px] text-xs text-start border-collapse border border-[#D1D1D1]">
                   <thead>
                     <tr className="bg-[#F3F2F1] border-b border-[#D1D1D1] text-[#323130] font-semibold">
-                      <th className="p-2.5 border-l border-[#D1D1D1]">البيان</th>
-                      {RATING_HEADERS.map((h) => (
-                        <th key={h} className="p-2.5 border-l border-[#D1D1D1] text-center w-20">
+                      <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.colStatement}</th>
+                      {ratingHeaders.map((h) => (
+                        <th key={h} className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-center w-20">
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { statement: 'مدي ملاءمة محتوي البرنامج لاحتياجاتك التدريبية', selected: 'ممتاز' },
-                      { statement: 'مدي كفاءة المدرب في توصيل المادة التدريبية', selected: 'ممتاز' },
-                      { statement: 'مدي كفاية الوقت المخصص للبرنامج', selected: 'جيد جداً' },
-                      { statement: 'التنظيم العام والتجهيزات', selected: 'ممتاز' },
-                    ].map((row, idx) => (
+                    {immediateStatements.map((row, idx) => (
                       <tr key={idx} className="border-b border-[#EDEBE9] hover:bg-[#FAFAFA]">
-                        <td className="p-2.5 border-l border-[#EDEBE9] font-medium text-[#323130]">
+                        <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-medium text-[#323130]">
                           {row.statement}
                         </td>
-                        {RATING_HEADERS.map((h) => (
-                          <td key={h} className="p-2.5 border-l border-[#EDEBE9] text-center">
+                        {ratingHeaders.map((h) => (
+                          <td key={h} className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-center">
                             <input
                               type="radio"
                               readOnly
@@ -200,42 +216,38 @@ export const TrainingCoursesDialog: React.FC<TrainingCoursesDialogProps> = ({
             )}
           </div>
 
-          {/* Accordion 2: قياس أثر البرنامج التدريبي على الموظف بعد 3 شهور من الحصول على الدورة التدريبية (Matching Screenshot 5) */}
+          {/* Accordion 2: 3-Months Impact Evaluation */}
           <div className="bg-white border border-[#D1D1D1]">
             <button
               type="button"
               onClick={() => setIs3MonthsEvalOpen(!is3MonthsEvalOpen)}
-              className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors"
+              className="w-full px-3 py-2 bg-[#F3F2F1] border-b border-[#EDEBE9] flex items-center justify-between text-xs font-bold text-[#323130] hover:bg-[#EDEBE9] transition-colors cursor-pointer"
             >
-              <span>قياس أثر البرنامج التدريبي على الموظف بعد 3 شهور من الحصول على الدورة التدريبية</span>
+              <span>{pt.training.threeMonthsEvalAccordion}</span>
               {is3MonthsEvalOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
 
             {is3MonthsEvalOpen && (
-              <div className="p-3">
-                <table className="w-full text-xs text-right border-collapse border border-[#D1D1D1]">
+              <div className="p-3 overflow-x-auto">
+                <table className="w-full min-w-[480px] text-xs text-start border-collapse border border-[#D1D1D1]">
                   <thead>
                     <tr className="bg-[#F3F2F1] border-b border-[#D1D1D1] text-[#323130] font-semibold">
-                      <th className="p-2.5 border-l border-[#D1D1D1]">البيان</th>
-                      {RATING_HEADERS.map((h) => (
-                        <th key={h} className="p-2.5 border-l border-[#D1D1D1] text-center w-20">
+                      <th className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-start">{pt.training.colStatement}</th>
+                      {ratingHeaders.map((h) => (
+                        <th key={h} className="p-2.5 rtl:border-l ltr:border-r border-[#D1D1D1] text-center w-20">
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { statement: 'مدي رغبة الموظف في التطوير ونقل المعرفة للزملاء', selected: 'جيد جداً' },
-                      { statement: 'تحسن كفاءة وسرعة إنجاز المهام الوظيفية المرتبطة بالدورة', selected: 'ممتاز' },
-                      { statement: 'القدرة على حل المشكلات التقنية وتطبيق الحلول الرقمية', selected: 'جيد جداً' },
-                    ].map((row, idx) => (
+                    {threeMonthStatements.map((row, idx) => (
                       <tr key={idx} className="border-b border-[#EDEBE9] hover:bg-[#FAFAFA]">
-                        <td className="p-2.5 border-l border-[#EDEBE9] font-medium text-[#323130]">
+                        <td className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] font-medium text-[#323130]">
                           {row.statement}
                         </td>
-                        {RATING_HEADERS.map((h) => (
-                          <td key={h} className="p-2.5 border-l border-[#EDEBE9] text-center">
+                        {ratingHeaders.map((h) => (
+                          <td key={h} className="p-2.5 rtl:border-l ltr:border-r border-[#EDEBE9] text-center">
                             <input
                               type="radio"
                               readOnly
@@ -254,7 +266,7 @@ export const TrainingCoursesDialog: React.FC<TrainingCoursesDialogProps> = ({
         </div>
       </D365Dialog>
 
-      {/* Course Evaluation Modal (Screenshot 6) */}
+      {/* Course Evaluation Modal */}
       <TrainingEvaluationDialog
         isOpen={!!evalTargetCourse}
         onClose={() => setEvalTargetCourse(null)}

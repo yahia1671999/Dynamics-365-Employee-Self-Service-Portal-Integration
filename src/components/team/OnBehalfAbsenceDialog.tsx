@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Clock, CheckCircle2 } from 'lucide-react';
 import { TeamMember } from '../../types/d365.types';
+import { usePersonalization } from '../../context/PersonalizationContext';
+import { getPopupTranslations } from '../../i18n/popupTranslations';
 
 interface OnBehalfAbsenceDialogProps {
   isOpen: boolean;
@@ -17,24 +19,29 @@ export const OnBehalfAbsenceDialog: React.FC<OnBehalfAbsenceDialogProps> = ({
   initialMemberId,
   onSubmit,
 }) => {
+  const { language, direction } = usePersonalization();
+  const pt = getPopupTranslations(language);
+
   const [selectedMemberId, setSelectedMemberId] = useState(initialMemberId || teamMembers[0]?.id || '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [duration, setDuration] = useState('ساعتان');
+  const [duration, setDuration] = useState(pt.onBehalfAbsence.duration2Hrs);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setDuration(pt.onBehalfAbsence.duration2Hrs);
+  }, [language]);
 
-  const currentMember = teamMembers.find((m) => m.id === selectedMemberId);
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMemberId) {
-      setError('يرجى اختيار الموظف');
+      setError(pt.onBehalfAbsence.validationSelectMember);
       return;
     }
     if (!reason.trim()) {
-      setError('يرجى كتابة سبب الإذن أو الغياب الرسمي');
+      setError(pt.onBehalfAbsence.validationReason);
       return;
     }
     setError(null);
@@ -43,17 +50,24 @@ export const OnBehalfAbsenceDialog: React.FC<OnBehalfAbsenceDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3">
-      <div className="bg-white border border-[#0078D4] w-full max-w-lg shadow-xl animate-in fade-in zoom-in-95 duration-150">
+    <div
+      role="dialog"
+      aria-modal="true"
+      dir={direction}
+      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 animate-in fade-in duration-200"
+    >
+      <div className="bg-white border border-[#0078D4] w-full max-w-lg shadow-xl animate-in fade-in zoom-in-95 duration-150 rounded-xs overflow-hidden">
         {/* Header */}
         <div className="bg-[#0078D4] text-white px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-sm">
             <Clock className="w-4 h-4" />
-            <span>طلب إذن غياب / خروج نيابة عن موظف (Absence On Behalf)</span>
+            <span>{pt.onBehalfAbsence.title}</span>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-white/80 hover:text-white hover:bg-white/20 p-1 transition-colors"
+            className="text-white/80 hover:text-white hover:bg-white/20 p-1 transition-colors cursor-pointer"
+            aria-label={pt.common.closeDialogAria}
           >
             <X className="w-4 h-4" />
           </button>
@@ -70,7 +84,7 @@ export const OnBehalfAbsenceDialog: React.FC<OnBehalfAbsenceDialogProps> = ({
           {/* Member Selection */}
           <div>
             <label className="block text-[#323130] font-semibold mb-1">
-              الموظف المعني في الفريق *
+              {pt.onBehalfAbsence.memberLabel}
             </label>
             <select
               value={selectedMemberId}
@@ -89,13 +103,13 @@ export const OnBehalfAbsenceDialog: React.FC<OnBehalfAbsenceDialogProps> = ({
             {/* Date */}
             <div>
               <label className="block text-[#323130] font-semibold mb-1">
-                تاريخ الإذن / الغياب *
+                {pt.onBehalfAbsence.dateLabel}
               </label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full h-8 px-2 border border-[#8A8886] focus:border-[#0078D4] outline-none text-xs"
+                className="w-full h-8 px-2 border border-[#8A8886] focus:border-[#0078D4] outline-none text-xs font-mono"
                 required
               />
             </div>
@@ -103,17 +117,17 @@ export const OnBehalfAbsenceDialog: React.FC<OnBehalfAbsenceDialogProps> = ({
             {/* Duration */}
             <div>
               <label className="block text-[#323130] font-semibold mb-1">
-                مدة الإذن *
+                {pt.onBehalfAbsence.durationLabel}
               </label>
               <select
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
-                className="w-full h-8 px-2 border border-[#8A8886] focus:border-[#0078D4] outline-none bg-white text-xs"
+                className="w-full h-8 px-2 border border-[#8A8886] focus:border-[#0078D4] outline-none bg-white text-xs cursor-pointer"
               >
-                <option value="ساعة واحدة">ساعة واحدة (تأخير صباحي / خروج مبكر)</option>
-                <option value="ساعتان">ساعتان (إذن رسمي قانوني)</option>
-                <option value="3 ساعات">3 ساعات (مأمورية جزئية)</option>
-                <option value="يوم كامل (إذن غياب)">يوم كامل (إذن غياب بموافقة جهة العمل)</option>
+                <option value={pt.onBehalfAbsence.duration1Hr}>{pt.onBehalfAbsence.duration1Hr}</option>
+                <option value={pt.onBehalfAbsence.duration2Hrs}>{pt.onBehalfAbsence.duration2Hrs}</option>
+                <option value={pt.onBehalfAbsence.duration3Hrs}>{pt.onBehalfAbsence.duration3Hrs}</option>
+                <option value={pt.onBehalfAbsence.durationFullDay}>{pt.onBehalfAbsence.durationFullDay}</option>
               </select>
             </div>
           </div>
@@ -121,13 +135,13 @@ export const OnBehalfAbsenceDialog: React.FC<OnBehalfAbsenceDialogProps> = ({
           {/* Reason */}
           <div>
             <label className="block text-[#323130] font-semibold mb-1">
-              سبب الإذن ومبررات الغياب الرسمي *
+              {pt.onBehalfAbsence.reasonLabel}
             </label>
             <textarea
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="اكتب سبب التصريح بالإذن (مأمورية خارجية، التوجه للنيابة الإدارية، ظرف عائلي، إلخ)..."
+              placeholder={pt.onBehalfAbsence.reasonPlaceholder}
               className="w-full p-2 border border-[#8A8886] focus:border-[#0078D4] outline-none text-xs"
               required
             />
@@ -138,16 +152,16 @@ export const OnBehalfAbsenceDialog: React.FC<OnBehalfAbsenceDialogProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 border border-[#8A8886] text-[#323130] hover:bg-[#EDEBE9]"
+              className="px-4 py-1.5 border border-[#8A8886] text-[#323130] hover:bg-[#EDEBE9] cursor-pointer"
             >
-              إلغاء
+              {pt.common.cancel}
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white font-semibold flex items-center gap-1.5 shadow-xs"
+              className="px-4 py-1.5 bg-[#0078D4] hover:bg-[#106EBE] text-white font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>تسجيل الإذن رسمياً</span>
+              <span>{pt.onBehalfAbsence.submitBtn}</span>
             </button>
           </div>
         </form>

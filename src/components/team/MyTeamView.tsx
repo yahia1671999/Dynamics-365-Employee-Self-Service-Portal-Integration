@@ -380,26 +380,26 @@ export const MyTeamView: React.FC<MyTeamViewProps> = ({
                       onClick={() => setSelectedMemberId(member.id)}
                       className={`relative cursor-pointer transition-all duration-150 border text-right flex flex-col justify-between ${
                         isSelected
-                          ? 'bg-[#EFF6FC] border-[#0078D4] shadow-sm ring-1 ring-[#0078D4]'
-                          : 'bg-white border-[#D1D1D1] hover:border-[#0078D4] hover:shadow-xs'
+                          ? 'bg-[#EFF6FC] border-[#0078D4] shadow-xs ring-1 ring-[#0078D4]'
+                          : 'bg-white border-[#D2D0CE] hover:border-[#0078D4] hover:shadow-xs hover:-translate-y-0.5'
                       }`}
                     >
                       {/* Top Blue Accent Bar (matching screenshot) */}
                       <div className="h-1.5 bg-[#0078D4] w-full relative">
                         {/* Direct Reports Badge (e.g., "التقارير المباشرة: 1" shown on وفاء سيد عرابى على in screenshot) */}
                         {hasDirectReports && (
-                          <div className="absolute top-0 right-0 bg-[#004E8C] text-white text-[9px] px-1.5 py-0.2 font-mono font-bold leading-tight">
+                          <div className="absolute top-0 right-0 bg-[#004E8C] text-white text-[9px] px-1.5 py-0.2 font-mono font-bold leading-tight shadow-2xs">
                             التقارير المباشرة: {member.directReportsCount}
                           </div>
                         )}
                       </div>
 
                       {/* Card Content */}
-                      <div className="p-2.5 flex items-start justify-between gap-2 flex-1">
+                      <div className="p-3 flex items-start justify-between gap-2.5 flex-1">
                         <div className="flex-1 min-w-0">
                           {/* Employee Name */}
                           <h3
-                            className="font-bold text-xs text-[#323130] truncate"
+                            className="font-bold text-xs text-[#201F1E] truncate tracking-tight"
                             title={member.name}
                           >
                             {member.name}
@@ -407,7 +407,7 @@ export const MyTeamView: React.FC<MyTeamViewProps> = ({
 
                           {/* Job Title */}
                           <p
-                            className="text-[11px] text-[#605E5C] truncate mt-0.5"
+                            className="text-[11px] text-[#605E5C] font-medium truncate mt-0.5"
                             title={member.jobTitle}
                           >
                             {member.jobTitle}
@@ -423,21 +423,22 @@ export const MyTeamView: React.FC<MyTeamViewProps> = ({
 
                           {/* Pending Request Indicator */}
                           {hasPendingRequest && (
-                            <span className="inline-block mt-1 text-[9px] bg-[#FFF4CE] text-[#797673] border border-[#FFB900] px-1 font-semibold">
-                              طلب معلق
+                            <span className="inline-flex items-center gap-1 mt-1.5 text-[9.5px] bg-[#FFF4CE] text-[#797673] border border-[#FDE300]/60 px-1.5 py-0.2 font-bold shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#B48200]" />
+                              <span>طلب معلق</span>
                             </span>
                           )}
                         </div>
 
                         {/* User Icon (matching the circular user outline in screenshot) */}
-                        <div className="w-8 h-8 rounded-full border border-[#0078D4]/40 flex items-center justify-center shrink-0 bg-white">
-                          <User className="w-5 h-5 text-[#0078D4] stroke-[1.5]" />
+                        <div className="w-8 h-8 rounded-full border border-[#0078D4]/30 flex items-center justify-center shrink-0 bg-[#F8F9FA] shadow-2xs">
+                          <User className="w-4 h-4 text-[#0078D4] stroke-[1.75]" />
                         </div>
                       </div>
 
                       {/* Selected State Footer: "التفاصيل ∨" (as shown on selected card in screenshot) */}
                       {isSelected ? (
-                        <div className="border-t border-[#0078D4]/20 py-1 px-2 bg-[#DEECF9] flex items-center justify-center gap-1 text-[11px] text-[#0078D4] font-semibold">
+                        <div className="border-t border-[#0078D4]/25 py-1 px-2.5 bg-[#DEECF9] flex items-center justify-center gap-1 text-[11px] text-[#0078D4] font-bold">
                           <span>التفاصيل</span>
                           <ChevronDown className="w-3.5 h-3.5" />
                         </div>

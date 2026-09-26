@@ -4,22 +4,56 @@
  * OData Entity Schemas: HcmWorker, HcmLeaveBalance, HcmLeaveRequest, HcmDisciplinaryAction, HcmCourseAttendance
  */
 
+export interface EmployeePersonalDetails {
+  maritalStatus: string; // الحالة الاجتماعية e.g. 'متزوجة'
+  maritalStatusDate: string; // تاريخ الحالة الاجتماعية e.g. '2012-04-18'
+  dependentsCount: number | string; // عدد المعالين e.g. 2
+  spouseWorking: 'نعم' | 'لا' | string; // الزوجة تعمل e.g. 'نعم'
+  religion: string; // الديانة e.g. 'مسلم'
+  educationQualification: string; // المؤهل العلمي e.g. 'بكالوريوس حاسبات ومعلومات - علوم الحاسب'
+  retirementDate: string; // تاريخ الإحالة إلى المعاش e.g. '2045-09-18'
+  isDisabled: 'نعم' | 'لا' | string; // شخص معاق e.g. 'لا'
+  verificationDate: string; // تاريخ التحقق e.g. '2024-01-10'
+}
+
+export interface SecondmentDetails {
+  entity: string; // جهة الندب
+  startDate: string; // تاريخ بدء الندب
+  endDate?: string; // تاريخ نهاية الندب
+  type?: string; // كلي / جزئي
+  referenceNumber?: string; // رقم قرار الندب
+  isRenewal?: boolean;
+}
+
+export interface LoanDetails {
+  entity: string; // الجهة المستعيرة
+  startDate: string; // تاريخ بدء الإعارة
+  endDate?: string; // تاريخ نهاية الإعارة
+  type?: string; // داخلية / خارجية
+  referenceNumber?: string; // رقم قرار الإعارة
+  isRenewal?: boolean;
+}
+
 export interface Employee {
-  id: string; // WorkerPersonnelNumber (e.g., 'EMP-10492')
-  name: string; // WorkerName (e.g., 'أحمد محمد عبد الله')
-  jobTitle: string; // JobDescription (e.g., 'مهندس برمجيات أول')
-  department: string; // DepartmentName (e.g., 'الإدارة العامة لتقنية المعلومات')
-  division: string; // Division / Section (e.g., 'قسم تطوير تطبيقات المؤسسة')
-  hireDate: string; // EmploymentStartDate (e.g., '2019-03-15')
+  id: string; // WorkerPersonnelNumber
+  name: string; // WorkerName
+  jobTitle: string; // JobDescription
+  department: string; // DepartmentName
+  division: string; // Division / Section
+  hireDate: string; // EmploymentStartDate
+  yearsOfService?: string; // سنوات الخدمة (e.g. '6 سنوات')
   directManager: string; // ReportsToWorkerName (e.g., 'د. سامي فهد العمر')
   jobGrade: string; // CompensationGrade (e.g., 'المرتبة السابعة - الدرجة 3')
-  employmentStatus: 'Active' | 'OnLeave' | 'Terminated'; // EmploymentStatus
-  employmentStatusAr: string; // 'على رأس العمل - نشط'
+  employmentStatus: 'Active' | 'OnLeave' | 'Terminated' | 'Seconded' | 'Loaned' | string; // EmploymentStatus
+  employmentStatusAr: string; // 'على رأس العمل - نشط' | 'منتدب' | 'معار'
   email: string;
   phone: string;
   legalEntity: string; // DataAreaId (e.g., 'USMF' / 'شركة التقنية المتقدمة')
   civilId: string; // National ID / Iqama
   avatarUrl?: string;
+  personalDetails?: EmployeePersonalDetails;
+  secondmentDetails?: SecondmentDetails;
+  loanDetails?: LoanDetails;
 }
 
 export type LeaveTypeCode =
@@ -354,3 +388,39 @@ export interface TeamMember {
   penalties: TeamMemberPenalty[];
   requests: TeamMemberRequest[];
 }
+
+export type RequestStatusCode =
+  | 'Draft'
+  | 'InReview'
+  | 'PendingApproval'
+  | 'Approved'
+  | 'Rejected';
+
+export type RequestStatusAr =
+  | 'مسودة'
+  | 'قيد المراجعة'
+  | 'بانتظار الموافقة'
+  | 'تمت الموافقة'
+  | 'مرفوض';
+
+export interface RecentRequest {
+  requestNumber: string; // رقم الطلب (e.g. 'REQ-LR-2026-089')
+  requestType: string; // نوع الطلب (e.g. 'طلب إجازة اعتيادية')
+  category: 'LEAVE' | 'PERMISSION' | 'SECONDMENT' | 'LOAN' | 'TRANSFER' | 'GRIEVANCE' | 'MONITORING';
+  submissionDate: string; // تاريخ التقديم (e.g. '2026-09-18')
+  fromDate?: string; // من تاريخ (e.g. '2026-10-01')
+  toDate?: string; // إلى تاريخ (e.g. '2026-10-05')
+  status: RequestStatusCode;
+  statusAr: RequestStatusAr;
+  employeeName: string;
+  employeeId: string;
+  notes?: string;
+  details?: string;
+  workflowStep?: string;
+}
+
+export interface UnifiedRequestItem extends RecentRequest {
+  id: string;
+  referenceNumber?: string;
+}
+
